@@ -1,0 +1,15 @@
+# Global ----------------------------------------------------------------------
+LRFutils   == 0.0.15
+numpy
+matplotlib
+tensorflow
+gitpython
+
+# Barnabé's program -----------------------------------------------------------
+pyvtk
+astrodendro
+docutils
+mpi4py
+h5py
+wheel
+amuse

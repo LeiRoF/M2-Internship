@@ -1,0 +1,8 @@
+# Documentation generated files
+/docs/_build/
+/docs/_static/
+/docs/_templates/
+
+# Environment files
+/venv/
+__pycache__/

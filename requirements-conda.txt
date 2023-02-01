@@ -1,0 +1,13 @@
+# Global ----------------------------------------------------------------------
+numpy
+matplotlib
+tensorflow
+gitpython
+
+# Barnabé's program -----------------------------------------------------------
+docutils
+mpi4py
+h5py
+wheel
+pyvtk
+amuse
