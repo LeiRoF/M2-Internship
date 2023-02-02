@@ -12,4 +12,4 @@ docutils
 mpi4py
 h5py
 wheel
-amuse
+git+https://github.com/amusecode/amuse

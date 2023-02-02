@@ -84,7 +84,7 @@ def loadmaps(wavel, name, N):
     """
 
     nwavel = len(wavel)
-    out = np.zeros((nwavel, 512, 512))
+    out = np.zeros((nwavel, N[1], N[2]))
 
     for i in range(nwavel):
         fitmap = fits.open('output_files/{}_{}.fits'.format(name, wavel[i]))
@@ -206,7 +206,9 @@ def fit_main(name, n):
 
         # Load SOC ini file for real cube size (in pc)
         csize = loadini(fpath, N)
+
         limit = [-csize, csize, -csize, csize]
+
 
         # Compute Temperature map
         Tmap, Nmap = fitter(data, wavel)
