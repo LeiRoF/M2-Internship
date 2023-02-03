@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = '3D prestellar core models'
+project = 'Retrieving prestellar cloud velocity by Machine Learning'
 copyright = '2023, Vincent Foriel'
 author = 'Vincent Foriel'
 

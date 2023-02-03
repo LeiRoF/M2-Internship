@@ -24,3 +24,11 @@
 ![](img/project_flowchart.png)
 
 </div>
+
+- Having trouble with AMUSE installation... I spend the entire day on it, but I finally succeeded to install it.
+  - There waas some additional dependencies to isntall and problem with deprecation of some functions used to build some modules, and after that there was stille a problem that required to totally clear the cache of pip and reinstall all modules, so I don't really know which manipulation were usefull and which were not.
+
+## 03/02/2023
+
+- Getting familiar with Barnabé's code
+- I need an access to the computation cluster in order to run Barnabé's code... waiting for it.

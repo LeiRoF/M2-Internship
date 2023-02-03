@@ -3,11 +3,12 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Internship's documentation!
-======================================
+Retrieving prestellar cloud velocity profile from mock observations using Machine Learning methods.
+====================================================================================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   Getting_Started
    Diary
