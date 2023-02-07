@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'Retrieving prestellar cloud velocity by Machine Learning'
+project = 'Prestel. state from obs. (ML)'
 copyright = '2023, Vincent Foriel'
 author = 'Vincent Foriel'
 
