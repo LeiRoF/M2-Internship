@@ -2,4 +2,12 @@
 
 Trying to get prestellar clouds velocity profile from mock observations using Machine Learning methods.
 
-📚 **Documentation: https://prestel-state-from-obs-ml.rtfd.io**
+<div align=center>
+<a href="https://retrieving-prestellar-cloud-velocity-by-machine-learning.readthedocs.io/en/latest/">
+
+<img src="docs/img/documentation.png" width="100">
+
+**Go to documentation**
+
+</a>
+</div>
