@@ -49,3 +49,15 @@
 ![](img/rough_prestellar_core_flowchart.png)
 
 </div>
+
+## 08/02/2023
+
+- I did the simplistic prestellar core generation by using a slight different process than the original idea, here is the new flowchart:
+  
+<div align=center>
+
+![](img/rough_mock_obs_flowchart.png)
+
+</div>
+
+- There is still some verifications and probably improvements to ensure this model is not totally absurd before generating a huge dataset.
