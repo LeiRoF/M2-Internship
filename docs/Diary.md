@@ -7,8 +7,8 @@
 - Meeting with Julien Montillaud
   - Defined global strategy
   - **Step 1**: Search existing tools to implement 3D convolutive neural network
-    - [CIANNA](https://github.com/Deyht/CIANNA) by David Cornu
-    - Tensorflow.Keras.layers.Conv3D
+    - Found [CIANNA](https://github.com/Deyht/CIANNA) by David Cornu
+    - Found Tensorflow.Keras.layers.Conv3D
   - **Step 2**: Generate simplistic models
   - **Step 3**: Implement 3D convolutive neural network
   - **Step 4**: Once it works, try to increase the complexity of the dataset to be more realistic (complexe shape, noise etc.)
@@ -26,12 +26,18 @@
 </div>
 
 - Having trouble with AMUSE installation... I spend the entire day on it, but I finally succeeded to install it.
-  - There waas some additional dependencies to isntall and problem with deprecation of some functions used to build some modules, and after that there was stille a problem that required to totally clear the cache of pip and reinstall all modules, so I don't really know which manipulation were usefull and which were not.
+  <details>
+  <summary>Installation problems</summary> 
+
+  There was some additional dependencies to install and problem with deprecation of some functions used to build some modules, and after that there was still a problem that required to totally clear the cache of pip and reinstall all modules, so I don't really know which manipulation were usefull and which were not.
+
+  </details>
 
 ## 03/02/2023
 
 - Getting familiar with Barnabé's code
 - I need an access to the computation cluster in order to run Barnabé's code... waiting for it.
+- Continuing reading Barnabé Deforet's internship report and articles about LOC and SOC
 
 ## 07/02/2023
 
@@ -61,3 +67,8 @@
 </div>
 
 - There is still some verifications and probably improvements to ensure this model is not totally absurd before generating a huge dataset.
+
+## 09/02/2023
+
+- Added normalization at several steps of the process to have better control of the output.
+- Removing symtery by generating the initial lorentzian distribution in a bigger space and cropping this space after the fourier transform.
