@@ -6,8 +6,13 @@ _templates/
 # Environment files
 venv/
 __pycache__/
+.ipynb_checkpoints
 
 # Generated data
 archives/
 logs/
 dataset/
+
+# Config files
+Generate_Dataset.sh
+Train_Model.sh

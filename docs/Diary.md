@@ -71,4 +71,7 @@
 ## 09/02/2023
 
 - Added normalization at several steps of the process to have better control of the output.
-- Removing symtery by generating the initial lorentzian distribution in a bigger space and cropping this space after the fourier transform.
+- Removed the central symtery by generating the initial lorentzian distribution in a bigger space and cropping this space after the fourier transform.
+- Got access to the computation cluster and started to got familiar with it.
+- Generated a 1000 items dataset
+- Facing a problem of memory when I try to train the neural network do to the huge size of the NN hyperparameters (more than 68 Billions for inner dense layers). The problem seems that I need one neuron for each pixel or voxel, which becomes huges even for image or spaces of 64 pixels/vocal wide. Thus, I need to find another solution in literature that doesn't involve dense layers, or at least that solve the problem in some way.

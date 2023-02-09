@@ -1,5 +1,5 @@
 # Global ----------------------------------------------------------------------
-LRFutils   == 0.1.0
+LRFutils   == 0.1.2
 numpy
 matplotlib
 tensorflow

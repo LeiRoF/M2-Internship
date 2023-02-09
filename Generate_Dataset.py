@@ -1,6 +1,7 @@
 import numpy as np
 import os
-from LRFutils import progress
+# from LRFutils import progress
+from multiprocessing import Pool
 
 # Function definition ---------------------------------------------------------
 
@@ -12,6 +13,7 @@ def plummer(r, a):
 
 
 def generate_one(save_as="data.npy"):
+    print(f"Generating {save_as}...")
 
     # Config ----------------------------------------------------------------------
 
@@ -160,7 +162,18 @@ def generate_one(save_as="data.npy"):
 
 if __name__ == "__main__":
     N = 1000
-    bar = progress.Bar(1000, prefix="Generating dataset")
+    # bar = progress.Bar(1000, prefix="Generating dataset")
+
+    r = os.getenv("OAR_NODEFILE")
+    with open(r, 'r') as f:
+        ncpu = len(f.readlines())
+
+    p = Pool(ncpu)
+
     for i in range(N):
-        bar(i+1)
-        generate_one(f"vector_{i}")
+        # bar(i+1)
+        
+        p.apply_async(generate_one, args=(f"vector_{i}",))
+    
+    p.close()
+    p.join()
