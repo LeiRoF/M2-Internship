@@ -75,3 +75,15 @@
 - Got access to the computation cluster and started to got familiar with it.
 - Generated a 1000 items dataset
 - Facing a problem of memory when I try to train the neural network do to the huge size of the NN hyperparameters (more than 68 Billions for inner dense layers). The problem seems that I need one neuron for each pixel or voxel, which becomes huges even for image or spaces of 64 pixels/vocal wide. Thus, I need to find another solution in literature that doesn't involve dense layers, or at least that solve the problem in some way.
+
+## 10/02/2023
+
+- Found a solution to train a classic neural network model, taking adventage of the local property of the problem. In fact, an output column depend only on the corresponding input column (and maybe some neighbors columns) and not on the entire datacube. So I can train a neural network that will be focused on a small windows of columns and will scan the datacube to get all output columns and rebuild the output datacube. Here is the flowchart of the idea:
+
+<div align=center>
+
+![](img/local_neural_network_flowchart.png)
+
+</div>
+
+- Trying to find a solution to use Jupyter in VSC with a kernel hosted a computation node.
