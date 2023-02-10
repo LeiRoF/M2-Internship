@@ -67,6 +67,7 @@
 </div>
 
 - There is still some verifications and probably improvements to ensure this model is not totally absurd before generating a huge dataset.
+- Also, there is a problem concerning the view axis. I avoid heavy computation to make a true observation from a distant point of view by summing the 3D datacube along a dimension. But according to the dimension on which I sum, I need to rotate the input cubes accordingly to the point of view before saving them. As it is easier to say but tricky to do, I decided to use only one point of view. Thus, the orientation of the cubes has no importance because the AI will try to match a cube without considering the physical orientation of the system represented inside. With only one point of view, I'm sure that the relative orientation between the obervation and the output will be the same, and then avoid convergence issues.
 
 ## 09/02/2023
 
@@ -86,4 +87,6 @@
 
 </div>
 
-- Trying to find a solution to use Jupyter in VSC with a kernel hosted a computation node.
+- Searched and found a solution to use Jupyter in VSC with a kernel hosted a computation node.
+- Edited the function to generate the input/output vectors composed of columns insteade of entire images, but I'm facing a memory leak issue...
+- Just thought to another problem: until now, I avoided the problem of orientation faced in the last part of the cloud generation process (see 08/02/2023). But as I'm now considering column (on the Z axis) at a specific X and Y coordinate, I need to ensure that all the axis are the same. Otherwise, I ask the AI to find the velocity and density profile along a line on X or Y (perpendicular to the line of sight) according to a spectrum for one given line of sight.

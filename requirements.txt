@@ -3,15 +3,3 @@ LRFutils   == 0.1.2
 numpy
 matplotlib
 tensorflow
-gitpython
-PyVTK
-
-# Barnabé's program -----------------------------------------------------------
-pyvtk
-astrodendro
-docutils
-mpi4py
-h5py
-wheel
-amuse
-pyopencl
