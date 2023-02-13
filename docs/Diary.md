@@ -103,6 +103,8 @@
 
   ![](img/2023-02-13-17-01-42.png)
 
+  *Credits: Thomas Ravinet cc-by-nc-sa*
+
   **The result:** It will not be very explicit, but I got:
 
   - For an observer on X+:
