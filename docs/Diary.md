@@ -90,3 +90,39 @@
 - Searched and found a solution to use Jupyter in VSC with a kernel hosted a computation node.
 - Edited the function to generate the input/output vectors composed of columns insteade of entire images, but I'm facing a memory leak issue...
 - Just thought to another problem: until now, I avoided the problem of orientation faced in the last part of the cloud generation process (see 08/02/2023). But as I'm now considering column (on the Z axis) at a specific X and Y coordinate, I need to ensure that all the axis are the same. Otherwise, I ask the AI to find the velocity and density profile along a line on X or Y (perpendicular to the line of sight) according to a spectrum for one given line of sight.
+
+# 13/02/2023
+
+- I think I solved the problem of orientation with an unconventional method. I will finish to implement it and test it tomorrow
+  <details>
+  <summary>Few details of the problem and method to solve it</summary>
+  
+  **The problem**: I have 3 cubes representing velocities along X, Y and Z axis for each space element (dimensions of the cubes correspond to space dimensions). The basis of Vx, Vy and Vz is classically oriented, but the space basis, guided by the index of the numpy array, is totally upside down. Moreover, I need a Vx', Vy' and Vz' in the basis of the observer... so that was a real 9 dimensionnale puzzle to solve.
+
+  **The unconventional method**: As I need to deal with 2 basis seen from a certain point of view, I first tryind to draw the problem... but without success. THen I tried with basis made with post-its, but no success neither. I needed to modelize the problem. As I don't master any 3D software to modelize it, I used the only kind-of 3D software I know: Minecraft, on wich I represented physically the basis used by numpy and the basis of the velocity vectors with their respective orientation. With numpy I designed a simple data cube conatining only 1 on (x,0,0), 2 on (0,y,0) and 3 on (0,0,z) and I sum this cube successively over each observation axis. By ploting the result, I was able to determine the orientation of the observer. After that, I put the player view in the corresponding orientation and I was able to see how Vx', Vy' and Vz' depend on Vx, Vy and Vz for each oservation axis.
+
+  ![](img/2023-02-13-17-01-42.png)
+
+  **The result:** It will not be very explicit, but I got:
+
+  - For an observer on X+:
+    - Vx'(x',y',z') = -Vz(y,z,x)
+    - Vy'(x',y',z') = -Vy(y,z,x)
+    - Vz'(x',y',z') = Vy(y,z,x)
+  - For an observer on Y+:
+    - Vx'(x',y',z') = Vy(x,z,-y)
+    - Vy'(x',y',z') = -Vx(x,z,-y)
+    - Vz'(x',y',z') = Vz(x,z,-y)
+  - For an observer on Z+:
+    - Vx'(x',y',z') = Vy(x,y,z)
+    - Vy'(x',y',z') = -Vz(x,y,z)
+    - Vz'(x',y',z') = -Vx(x,y,z)
+
+  For the observer on negative axis, it's the same but with the reversed x' and z' coordinates.
+
+  </details>
+
+- Discussed with Julien Montillaud and having now 2 new methods using NN to solve the problem which:
+  - The one I considered until now, consisting of scanning the input data cube with a small windows to get only the data of a line of sight as a result and reconstruct progressively the output data cube. I will call it the "Scanner" method from now on.
+  - Taking a very low resolution input cube, and then zooming on a child cube with always the same resolution. I will call it the "NCIS zoom" method from now on.
+  - Taking the overhaul input cube as parameter and asking an AI to compress it as it can and then decompress it to get the output cube, which I will call the "Houglass" method.
