@@ -164,8 +164,7 @@ if __name__ == "__main__":
     N = 1000
     # bar = progress.Bar(1000, prefix="Generating dataset")
 
-    r = os.getenv("OAR_NODEFILE")
-    with open(r, 'r') as f:
+    with open(os.getenv("OAR_NODEFILE"), 'r') as f:
         ncpu = len(f.readlines())
 
     p = Pool(ncpu)
