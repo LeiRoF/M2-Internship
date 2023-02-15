@@ -143,5 +143,6 @@
   | Z-               | Vx(-x,y,-z)   | Vy(-x,y,-z)   | Vz(-x,y,-z)   |
 
   </div>
+- I succeeded to start a VSC Jupyter on the computation cluster! I can now fully focus on the training phase!
 
 
