@@ -126,3 +126,22 @@
 - As the resulting spectrum was either gaussian-shaped either very noisy due to the gaussian shape of the initial spectrum distribution, I switch this profile, first to a voigt profile, then on a lorentzian one because the voigt profile was hundred of times heavier to generate than a similar lorentizan (and I'm still not searching for accuracy in this model). Now, after applying the red-shift, I get complexe spectra like this: ![](img/2023-02-14-16-13-06.png) There is not the two expected pikes but it's normal. In fact, as the velocity is computed from the density gradient and as there is several local maximums, there is several idependant parts of the cloud that is getting closer to the observer at different speeds, and several others getting away. To minimize this effect, I applied a 3D gaussian profile on the density cloud an then I created a global maximum at the center. I then have either lorentzian-shaped profiles either very choatic ones, but it's a bit better because I can locally find these kind of profiles that show a rotation: ![](img/2023-02-14-16-38-43.png)
 - As the spectra are a bit chaotic, I will first try to train the model with the full spectra (100 points) instead of using 3 wavelenghts as it will be the case in the end. This reduction of spectra resolution will then be on of the parameters I will check to see he impact of the AI accuracy.
 - My model is then ready, and I generated a dataset. I'm now trying to connect a Jupyter to the computation cluster before starting training the model.
+
+## 15/02/2023
+
+- I found a new mistake in the rotation transformation of the data cubes. As the mistakes comes directly from a way the numpy manage the exis, I designed a small 3D interactive plots to find the right transformation. On these plots, the big trihedron represent the initial space axis and the small on represent the initial velocity axis (blue for X, red for Y, green for Z). When we switch to the referential of the observer, Z goes outside the screen, so these trihedrons are rotated. Visually, the problem seems simple: from a X+ point of view, x become z', y become x' and z bcome y'. But as numpy is using a index system that doesn't correspond to space dimensions, the transformation are more subtiles. ![](img/2023-02-15-13-44-12.png) I now (and finally I hope) have:
+  
+  <div align=center>
+
+  | Observation axis | Vx'(x',y',z') | Vy'(x',y',z') | Vz'(x',y',z') |
+  |------------------|---------------|---------------|---------------|
+  | X+               | Vy(z,x,y)     | Vz(z,x,y)     | Vx(z,x,y)     |
+  | Y-               | Vx(x,-z,y)    | Vz(x,-z,y)    | Vy(x,-z,y)    |
+  | Z+               | Vx(x,y,z)     | Vy(x,y,z)     | Vz(x,y,z)     |
+  | X-               | Vy(-z,-x,y)   | Vz(-z,-x,y)   | Vx(-z,-x,y)   |
+  | Y+               | Vx(-x,z,y)    | Vz(-x,z,y)    | Vy(-x,z,y)    |
+  | Z-               | Vx(-x,y,-z)   | Vy(-x,y,-z)   | Vz(-x,y,-z)   |
+
+  </div>
+
+
