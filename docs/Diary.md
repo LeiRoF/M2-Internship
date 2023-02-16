@@ -150,11 +150,19 @@
 - Having trouble while trying to load the data set due to huge memory usage or huge processing time. I tested multiple solutions and I move forward but I'm still not able to load a full dataset due to anormal memory usage (about 100 times more than it should be).
 - With the help of Thomas Ravinet, I think I found the origin of the problem: the native python list are incredibly heavier than numpy arrays. I then changed the way I store the data and it seems to load correctly. I will need to verify the inetegrity of the data and adapt the code this change.
 
-<script src="https://utteranc.es/client.js"
-        repo="Leirof/M2-Prestel-state-from-obs-ML"
-        issue-term="pathname"
-        label="Comment"
-        theme="github-light"
+<script src="https://giscus.app/client.js"
+        data-repo="Leirof/M2-Prestel-state-from-obs-ML"
+        data-repo-id="R_kgDOI4ZFbQ"
+        data-category="Documentation"
+        data-category-id="DIC_kwDOI4ZFbc4CUQYG"
+        data-mapping="title"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="bottom"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
         crossorigin="anonymous"
         async>
 </script>
