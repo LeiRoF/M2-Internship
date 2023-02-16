@@ -33,7 +33,7 @@ def space_3D(matrix, X,Y,Z):
     plt.colorbar()
     plt.show()
 
-def sum_in_3_directions(matrix, cmap='inferno'):
+def sum_in_3_directions(matrix, cmap='inferno', save_as=None):
 
     sum_x = np.sum(matrix, axis=0)
     sum_y = np.sum(matrix, axis=1)
@@ -46,4 +46,8 @@ def sum_in_3_directions(matrix, cmap='inferno'):
     fig.colorbar(im)
     im = axs[2].imshow(sum_z, cmap=cmap)
     fig.colorbar(im)
-    plt.show()
+
+    if save_as is not None:
+        plt.savefig(save_as)
+    else:
+        plt.show()
