@@ -155,7 +155,7 @@
         data-repo-id="R_kgDOI4ZFbQ"
         data-category="Documentation"
         data-category-id="DIC_kwDOI4ZFbc4CUQYG"
-        data-mapping="og:title"
+        data-mapping="title"
         data-strict="0"
         data-reactions-enabled="1"
         data-emit-metadata="0"
