@@ -234,9 +234,9 @@ def velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot):
 
 vx, vy, vz = velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot)
 
-plot.sum_in_3_directions(vx, "seismic_r")
-plot.sum_in_3_directions(vy, "seismic_r")
-plot.sum_in_3_directions(vz, "seismic_r")
+plot.sum_in_3_directions(vx, "seismic_r", save_as=f"{archive_path}/8_vx.png")
+plot.sum_in_3_directions(vy, "seismic_r", save_as=f"{archive_path}/8_vy.png")
+plot.sum_in_3_directions(vz, "seismic_r", save_as=f"{archive_path}/8_vz.png")
 
 bar(1, prefix=f"{system_info()} | Generating velocity field")
 
@@ -378,6 +378,7 @@ repr_x = observations[0][::N//10,::N//10, :]
 for i in range(10):
     for j in range(10):
         axs[i,j].plot(f, repr_x[i,j,:])
+plt.savefig(f"{archive_path}/9_Spectrum_from_X.png")
 
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 im = axs[0].imshow(observations[0][:,:,25], cmap="inferno")
@@ -386,7 +387,7 @@ im = axs[1].imshow(observations[0][:,:,50], cmap="inferno")
 fig.colorbar(im)
 im = axs[2].imshow(observations[0][:,:,75], cmap="inferno")
 fig.colorbar(im)
-plt.savefig(f"{archive_path}/8_Spectrum_from_X.png")
+plt.savefig(f"{archive_path}/10_Obs_from_X.png")
 # plt.show()
 
 bar(0.25, prefix=f"{system_info()} | Saving data")
@@ -408,6 +409,7 @@ repr_y = observations[1][::N//10,::N//10, :]
 for i in range(10):
     for j in range(10):
         axs[i,j].plot(f, repr_y[i,j,:])
+plt.savefig(f"{archive_path}/9_Spectrum_from_Y.png")
 
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 im = axs[0].imshow(observations[1][:,:,25], cmap="inferno")
@@ -416,7 +418,7 @@ im = axs[1].imshow(observations[1][:,:,50], cmap="inferno")
 fig.colorbar(im)
 im = axs[2].imshow(observations[1][:,:,75], cmap="inferno")
 fig.colorbar(im)
-plt.savefig("f"{archive_path}/9_Spectrum_from_Y.png")
+plt.savefig(f"{archive_path}/10_Obs_from_Y.png")
 # plt.show()
 
 bar(0.5, prefix=f"{system_info()} | Saving data")
@@ -438,6 +440,8 @@ for i in range(10):
     for j in range(10):
         axs[i,j].plot(f, repr_z[i,j,:])
 
+plt.savefig(f"{archive_path}/9_Spectrum_from_Z.png")
+
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 im = axs[0].imshow(observations[2][:,:,25], cmap="inferno")
 fig.colorbar(im)
@@ -445,7 +449,7 @@ im = axs[1].imshow(observations[2][:,:,50], cmap="inferno")
 fig.colorbar(im)
 im = axs[2].imshow(observations[2][:,:,75], cmap="inferno")
 fig.colorbar(im)
-plt.savefig("f"{archive_path}/10_Spectrum_from_Z.png")
+plt.savefig(f"{archive_path}/10_Obs_from_Z.png")
 # plt.show()
 
 bar(0.75, prefix=f"{system_info()} | Saving data")
@@ -467,9 +471,13 @@ save(0, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
 
 bar(1, prefix=f"{system_info()} | Saving data")
 
+
+
 #==============================================================================
 # GENERATING DATASET
 #==============================================================================
+
+
 
 # Generate one (replay the file once) -----------------------------------------
 
@@ -495,14 +503,19 @@ def generate_set(i):
     cloud_obs, vx_obs, vy_obs, vz_obs = rotate_data(cloud, v)
 
     # Compute observations
-    spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=True)
+    spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=False)
 
     save(i+1, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
 
 # Generate the dataset --------------------------------------------------------
 
-pool = Pool(ncpu)
+print(f"Verify that the program generated what you want in {archive_path}")
+choice = input("Do you want to generate the dataset? (Y/n) ")
 
+if choice.lower() not in ["", "y", "yes"]:
+    exit()
+
+pool = Pool(ncpu)
 for i in  range(nb_images-1):
     pool.apply_async(func=generate_set, args=(i,))
 

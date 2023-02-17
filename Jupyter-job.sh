@@ -1,7 +1,7 @@
 #!/bin/bash
 #OAR -n "Training Model"
 #OAR -p gpu>0
-#OAR -l /gpu=1,walltime=8:00:00
+#OAR -l /gpu=1,walltime=2:00:00
 #OAR -O logs/jupyter-log.txt
 #OAR -E logs/jupyter-err.txt
 #OAR -t besteffort

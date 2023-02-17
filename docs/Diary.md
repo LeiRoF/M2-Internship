@@ -150,6 +150,18 @@
 - Having trouble while trying to load the data set due to huge memory usage or huge processing time. I tested multiple solutions and I move forward but I'm still not able to load a full dataset due to anormal memory usage (about 100 times more than it should be).
 - With the help of Thomas Ravinet, I think I found the origin of the problem: the native python list are incredibly heavier than numpy arrays. I then changed the way I store the data and it seems to load correctly. I will need to verify the inetegrity of the data and adapt the code this change.
 
+## 17/02/2023
+
+- Meeting with Julien Montillaud
+  - I should simplify a lot my simulation: simple profile for gaz and velocity
+  - To have a similair setup to the one we will have in practice, I should consider 3 input data:
+    - Dust column density (image with 1 canal): just the sum of the total gaz over the observation axis
+    - CO gaz data cube (images with 3 canals for 3 different frequencies): Gaz present at low density/temperature
+    - N2 gaz data cube (images with 3 canals for 3 different frequencies): Gaz present at high density/temperature
+  - I should replace the way I compute the spectra by gaussians with an simple radiative transfert computation: starting from the back of the cloud and sum the spectra by making it decay in function of the density of the elements (dust and gases), using a simple decay $e^{-\tau \rho}$ with $\tau$ the optical depth and $\rho$ the density of the element (adimentionalized).
+  - The Scanner method is definitely not usable because we need the global informations. Only the Hourglass method is usable among the one I presented. There is probably other methods that could be used but I don't know them yet.
+- Starting to follow the Fidle course on Deep Learning to figure out how to solved this kind of 3D -> 3D problem.
+
 <script src="https://giscus.app/client.js"
         data-repo="Leirof/M2-Prestel-state-from-obs-ML"
         data-repo-id="R_kgDOI4ZFbQ"
