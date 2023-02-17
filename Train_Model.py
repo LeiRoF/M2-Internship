@@ -1,45 +1,67 @@
-# %%
+#==============================================================================
+# INITIALIZATION
+#==============================================================================
+
+
+
+# Dependencies ----------------------------------------------------------------
+
 import numpy as np
 import tensorflow as tf
 from LRFutils import archive, progress
 import os
-from multiprocess import Pool
+from multiprocess import Pool, cpu_count
 import psutil
+
+# Config ----------------------------------------------------------------------
+
+valid_frac = 0.2
+test_frac  = 0.1
+
+# Global variables ------------------------------------------------------------
 
 archive_path = archive.new()
 
-# %%
-!nvidia-smi
+try:
+    ncpu = cpu_count()
+except:
+    with open(os.getenv("OAR_NODEFILE"), 'r') as f:
+        ncpu = len(f.readlines())
 
-# %% [markdown]
-# ---
-# 
-# # Loading Data
 
-# %% [markdown]
-# For one vector, we expect something like this:
-# 
-# **Input $x_i$:**
-# - I[x,y,f] : data cube of intensity for a given pixel (x,y) and frequency f
-# 
-# **Outputs $y_i$:**
-# - Vx[x,y,z] : data cube of velocity in x direction for a given coordinate in space (x,y,z)
-# - Vy[x,y,z] : data cube of velocity in y direction for a given coordinate in space (x,y,z)
-# - Vz[x,y,z] : data cube of velocity in z direction for a given coordinate in space (x,y,z)
-# - $\rho$[x,y,z] : data cube of density for a given coordinate in space (x,y,z)
-# 
-# In practice, there is lot of vectors, so $x = [x_1, x_2, ..., x_N]$ and $y = [y_1, y_2, ..., y_N]$ where $N$ is the number of vectors.
-# 
-# To simplify the neural network and potentially increase it's accuracy, we will not design a network that predicts all of the outputs at once. Instead, we will design 4 networks that will predict one output. This means that we will have 4 networks, one for each output. So $y_i$ will alternatively contain only one of the elements listed above.
-# 
 
-# %% [markdown]
-# > **YOUR JOB**: In the following cell, write the code that load the data as specified above.
+#==============================================================================
+# LOAD DATA
+#==============================================================================
 
-# %%
+
+
+"""
+For one vector, we expect something like this:
+
+**Input $x_i$:**
+- I[x,y,f] : data cube of intensity for a given pixel (x,y) and frequency f
+
+**Outputs $y_i$:**
+- Vx[x,y,z] : data cube of velocity in x direction for a given coordinate in space (x,y,z)
+- Vy[x,y,z] : data cube of velocity in y direction for a given coordinate in space (x,y,z)
+- Vz[x,y,z] : data cube of velocity in z direction for a given coordinate in space (x,y,z)
+- $\rho$[x,y,z] : data cube of density for a given coordinate in space (x,y,z)
+
+In practice, there is lot of vectors, so $x = [x_1, x_2, ..., x_N]$ and $y = [y_1, y_2, ..., y_N]$ where $N$ is the number of vectors.
+
+To simplify the neural network and potentially increase it's accuracy, we will not design a network that predicts all of the outputs at once. Instead, we will design 4 networks that will predict one output. This means that we will have 4 networks, one for each output. So $y_i$ will alternatively contain only one of the elements listed above.
+
+> **YOUR JOB**: In the following cell, write the code that load the data as specified above.
+"""
+
+# Read one file ---------------------------------------------------------------
+
 def load_file(file):
     data = np.load("dataset/" + file)
     return data
+
+# Load data -------------------------------------------------------------------
 
 def load_data() -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Do what you want int this function, as long as it returns the following:
@@ -86,17 +108,20 @@ def load_data() -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
     
     return x, y0, y1, y2, y3
 
-# %% [markdown]
-# ---
-# 
-# # Post data treatment
-# 
-# This part only consist to check the data consistency, normalize it and split the dataset.
 
-# %% [markdown]
-# Verification that the data are consistent
 
-# %%
+#=============================================================================
+# Post data treatment
+#=============================================================================
+
+
+
+"""
+This part only consist to check the data consistency, normalize it and split the dataset.
+"""
+
+# Check data consistency -----------------------------------------------------
+
 x, y0, y1, y2, y3 = load_data()
 assert len(x) == len(y0) == len(y1) == len(y2) == len(y3), f"x and y must have the same length, found {len(x)}, {len(y0)}, {len(y1)}, {len(y2)}, {len(y3)}"
 x = np.array(x)
@@ -105,52 +130,25 @@ y1 = np.array(y1)
 y2 = np.array(y2)
 y3 = np.array(y3)
 
-# %% [markdown]
-# Getting dimensions
+# Getting dimensions ---------------------------------------------------------
 
-# %%
 nb_vectors = len(x)
-size_x = x[0].shape
-size_x_x, size_x_y, size_x_z = size_x
-channel_x = 1
-input_shape = (size_x_x, size_x_y, size_x_z, channel_x)
 
-size_y0 = y0[0].shape
-size_y0_x, size_y0_y, size_y0_z = size_y0
-channel_y0 = 1
-output0_shape = (size_y0_x, size_y0_y, size_y0_z, channel_y0)
+len_x = x.shape[3]
+len_y0 = y0.shape[3]
+len_y1 = y1.shape[3]
+len_y2 = y2.shape[3]
+len_y3 = y3.shape[3]
 
-size_y1 = y1[0].shape
-size_y1_x, size_y1_y, size_y1_z = size_y1
-channel_y1 = 1
-output1_shape = (size_y1_x, size_y1_y, size_y1_z, channel_y1)
+# Normalizing data ------------------------------------------------------------
 
-size_y2 = y2[0].shape
-size_y2_x, size_y2_y, size_y2_z = size_y2
-channel_y2 = 1
-output2_shape = (size_y2_x, size_y2_y, size_y2_z, channel_y2)
-
-size_y3 = y3[0].shape
-size_y3_x, size_y3_y, size_y3_z = size_y3
-channel_y3 = 1
-output3_shape = (size_y3_x, size_y3_y, size_y3_z, channel_y3)
-
-# %% [markdown]
-# Normalizing data
-
-# %%
 x /= np.max(np.abs(x))
 y0 /= np.max(np.abs(y0))
 y1 /= np.max(np.abs(y1))
 y2 /= np.max(np.abs(y2))
 y3 /= np.max(np.abs(y3))
 
-# %% [markdown]
-# Splitting datasets
-
-# %%
-valid_frac=0.2
-test_frac=0.1
+# Splitting datasets ----------------------------------------------------------
 
 train_frac = 1 - valid_frac - test_frac
 
@@ -175,13 +173,11 @@ test_y2 = y2[int(nb_vectors * (train_frac + valid_frac)):]
 test_y3 = y3[int(nb_vectors * (train_frac + valid_frac)):]
 test_y = [test_y0, test_y1, test_y2, test_y3]
 
-# %% [markdown]
-# ---
-# 
-# # Model definition
+#==============================================================================
+# Model definition
+#==============================================================================
 
-# %%
-# Build the 3D CNN model
+# Build the 3D CNN model ------------------------------------------------------
 
 def get_model(input_shape, output_shape):
 
@@ -203,9 +199,6 @@ def get_model(input_shape, output_shape):
 
     return model
 
-# %% [markdown]
-# ---
-# 
 # # Training models
 
 # %%

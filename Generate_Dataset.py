@@ -326,7 +326,7 @@ def compute_spectrum_hypercube(cloud, vz):
     for x in range(N):
         for y in range(N):
             for z in range(N):
-                spectrum_hypercube[x,y,z,:] = lorentzian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
+                spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
                 # spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
                 # spectrum_hypercube[x,y,z,:] = voigt_profile(f+3*vz[x,y,z], sigma, gamma) * cloud[x,y,z]
             bar(x*N+y+1, prefix=f"{system_info()} | Red shifting")
