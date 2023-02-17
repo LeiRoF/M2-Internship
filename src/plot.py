@@ -49,5 +49,5 @@ def sum_in_3_directions(matrix, cmap='inferno', save_as=None):
 
     if save_as is not None:
         plt.savefig(save_as)
-    else:
-        plt.show()
+    # else:
+    #     plt.show()
