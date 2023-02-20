@@ -34,8 +34,6 @@ f = np.linspace(0, 2, 100)
 r, dr = np.linspace(space_range[0], space_range[1], N, endpoint=True, retstep=True)
 X, Y, Z = np.meshgrid(r, r, r)
 
-bar = progress.Bar(prefix="[First Run] Starting...")
-
 archive_path = archive.new("Generation", verbose=True)
 
 try:
@@ -46,14 +44,14 @@ except:
 
 # Function definition ---------------------------------------------------------
 
-def gaussian(x, mu, sigma):
-    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
+def gaussian(x, m=0.5, s=0.05):
+    return np.exp(- (x - m)**2 / (2 * s**2))
 
 def lorentzian(x, mu, gamma):
     return gamma / (np.pi * ((x - mu)**2 + gamma**2))
 
-def plummer(r, a):
-    return 3/(4*np.pi*a**3)*(1 + r**2 / a**2)**(-5/2)
+def plummer(r, R=0.75):
+    return 3/(4*np.pi*R**3)*(1 + r**2 / R**2)**(-5/2)
 
 def voigt_profile(freq_range, sigma, gamma):
     x = freq_range
@@ -62,6 +60,9 @@ def voigt_profile(freq_range, sigma, gamma):
         z = (x_i + 1j * gamma) / (sigma * np.sqrt(2))
         y[i] = np.real(wofz(z)) / (sigma * np.sqrt(2*np.pi))
     return y
+
+def sigmoid(x, d=0.5, l=10):
+    return 1/(1+np.exp(-l*(x-d)))
 
 def system_info():
     return f"CPU: {psutil.cpu_percent()}%"\
@@ -82,28 +83,16 @@ def system_info():
 
 # Generating lorentzian in a bigger space -------------------------------------
 
-bar(0, prefix=f"{system_info()} | Generating density field")
-
 def lorentzian_3D():
     tmp_r, tmp_dr = np.linspace(space_range[0]*2, space_range[1]*2, N*2, endpoint=True, retstep=True)
     tmp_X, tmp_Y, tmp_Z = np.meshgrid(tmp_r, tmp_r, tmp_r)
 
     return 1/(1+(tmp_X**2+tmp_Y**2+tmp_Z**2)**2*1000)
 
-cloud = lorentzian_3D()
-plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/1_lorentzian.png")
-
-bar(0.1, prefix=f"{system_info()} | Generating density field")
-
 # Adding noise ----------------------------------------------------------------
 
 def noise(cloud):
     return cloud * np.random.normal(0, 0.1, size=(N*2, N*2, N*2))
-
-cloud = noise(cloud)
-plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/2_noise.png")
-
-bar(0.3, prefix=f"{system_info()} | Generating density field")
 
 # ## Fourier transform ---------------------------------------------------------
 
@@ -116,13 +105,6 @@ def fft(cloud):
 def crop(cloud):
     return cloud[:N, :N, :N]
 
-cloud = fft(cloud)
-cloud = crop(cloud)
-
-plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/3_fft.png")
-
-bar(0.5, prefix=f"{system_info()} | Generating density field")
-
 # Plummer profile -------------------------------------------------------------
 
 def plummerize(cloud):
@@ -130,12 +112,6 @@ def plummerize(cloud):
 
 def normalize(cloud):
     return cloud / np.amax(cloud)
-
-cloud = plummerize(cloud)
-
-plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/4_plummer.png")
-
-bar(0.7, prefix=f"{system_info()} | Generating density field")
 
 # Gaussianize -----------------------------------------------------------------
 
@@ -145,16 +121,7 @@ def guassianize(cloud):
     g = gaussian(np.sqrt(X**2+Y**2+Z**2), 0, 0.5)
     return cloud * g
 
-cloud = guassianize(cloud)
-plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian.png")
-
-bar(0.9, prefix=f"{system_info()} | Generating density field")
-
 # Normalize and save ----------------------------------------------------------
-
-# Normalize the density (max = 1)
-
-cloud = normalize(cloud)
 
 # Saving to a vtk file to view it with ParaView
 
@@ -162,10 +129,6 @@ def savevtk(cloud, N, name):
     pointdata = vtk.PointData((vtk.Scalars(cloud.reshape(N**3,), name='Scalars0')))
     data = vtk.VtkData(vtk.StructuredPoints([N, N, N]), pointdata)
     data.tofile(f"{name}", 'binary')
-
-savevtk(cloud, N, f'{archive_path}/cloud')
-
-bar(1, prefix=f"{system_info()} | Generating density field")
 
 
 
@@ -177,68 +140,41 @@ bar(1, prefix=f"{system_info()} | Generating density field")
 
 # Density gradient based velocity field ----------------------------------------
 
-bar(0, prefix=f"{system_info()} | Generating velocity field")
+def velocity_grad(cloud: np.ndarray) -> list[np.ndarray]:
+    grad = np.gradient(cloud, dr)
 
-def velocity_grad(cloud):
-    cloud_gradient = np.gradient(cloud, dr)
-
-    vx_grad = cloud_gradient[0] / np.amax(np.abs(cloud_gradient[0]))
-    vy_grad = cloud_gradient[1] / np.amax(np.abs(cloud_gradient[1]))
-    vz_grad = cloud_gradient[2] / np.amax(np.abs(cloud_gradient[2]))
+    v_grad = np.empty_like(grad)
 
     # Removing aberrant values at the edges
-    for v in [vx_grad, vy_grad, vz_grad]:
-        v[0,:,:] = 0
-        v[-1,:,:] = 0
-        v[:,0,:] = 0
-        v[:,-1,:] = 0
-        v[:,:,0] = 0
-        v[:,:,-1] = 0
+    for i in range(3):
+        v_grad[i] = grad[i] / np.amax(np.abs(grad[i]))
+        v_grad[i,0,:,:] = 0
+        v_grad[i,-1,:,:] = 0
+        v_grad[i,:,0,:] = 0
+        v_grad[i,:,-1,:] = 0
+        v_grad[i,:,:,0] = 0
+        v_grad[i,:,:,-1] = 0
 
-    return vx_grad, vy_grad, vz_grad
-
-vx_grad, vy_grad, vz_grad = velocity_grad(cloud)
-
-plot.sum_in_3_directions(vx_grad, "seismic_r", save_as=f"{archive_path}/6_vx_grad.png")
-plot.sum_in_3_directions(vy_grad, "seismic_r", save_as=f"{archive_path}/6_vy_grad.png")
-plot.sum_in_3_directions(vz_grad, "seismic_r", save_as=f"{archive_path}/6_vz_grad.png")
-
-bar(0.33, prefix=f"{system_info()} | Generating velocity field")
+    return v_grad[0], v_grad[1], v_grad[2]
 
 # Rotational speed ------------------------------------------------------------
 
-def velocity_rot():
+def velocity_rot() -> list[np.ndarray]:
     vx_rot = -Y / np.amax(np.abs(Y))
     vy_rot = X  / np.amax(np.abs(X))
     vz_rot = X * 0
 
     return vx_rot, vy_rot, vz_rot
 
-vx_rot, vy_rot, vz_rot = velocity_rot()
-
-plot.sum_in_3_directions(vx_rot, "seismic_r", save_as=f"{archive_path}/7_vx_rot.png")
-plot.sum_in_3_directions(vy_rot, "seismic_r", save_as=f"{archive_path}/7_vy_rot.png")
-plot.sum_in_3_directions(vz_rot, "seismic_r", save_as=f"{archive_path}/7_vz_rot.png")
-
-bar(0.66, prefix=f"{system_info()} | Generating velocity field")
-
 # Speed average ---------------------------------------------------------------
 
-def velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot):
+def velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot) -> list[np.ndarray]:
     rot_prop = 0.2
     vx = ((1-rot_prop) * vx_grad + rot_prop * vx_rot)/2
     vy = ((1-rot_prop) * vy_grad + rot_prop * vy_rot)/2
     vz = ((1-rot_prop) * vz_grad + rot_prop * vz_rot)/2
 
     return vx, vy, vz
-
-vx, vy, vz = velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot)
-
-plot.sum_in_3_directions(vx, "seismic_r", save_as=f"{archive_path}/8_vx.png")
-plot.sum_in_3_directions(vy, "seismic_r", save_as=f"{archive_path}/8_vy.png")
-plot.sum_in_3_directions(vz, "seismic_r", save_as=f"{archive_path}/8_vz.png")
-
-bar(1, prefix=f"{system_info()} | Generating velocity field")
 
 
 
@@ -313,11 +249,9 @@ def rotate_data(cloud, v):
 
     return cloud_obs, vx_obs, vy_obs, vz_obs
 
-cloud_obs, vx_obs, vy_obs, vz_obs = rotate_data(cloud, (vx, vy, vz))
-
 # Red shift -------------------------------------------------------------------
 
-def compute_spectrum_hypercube(cloud, vz):  
+def compute_spectrum_hypercube(clouds, optical_depth_maps, emission_profiles, vz):  
     bar = progress.Bar(N**2, prefix=f"{system_info()} | Red shifting")
 
     spectrum_hypercube = np.zeros((N, N, N, len(f)))
@@ -325,10 +259,18 @@ def compute_spectrum_hypercube(cloud, vz):
     bar = progress.Bar(N**2, prefix="Generating spectra")
     for x in range(N):
         for y in range(N):
-            for z in range(N):
-                spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
-                # spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
-                # spectrum_hypercube[x,y,z,:] = voigt_profile(f+3*vz[x,y,z], sigma, gamma) * cloud[x,y,z]
+            for z in range(N): # z : 0 -> N-1
+                for i, cloud in enumerate(clouds):
+
+                    # Extinction
+                    if z > 0:
+                        spectrum_hypercube[x,y,z,:] += spectrum_hypercube[x,y,z-1,:] \
+                                                    * cloud[x,y,z] \
+                                                    * optical_depth_maps[i](vz[x,y,z-1] - vz[x,y,z])
+                    
+                    # Emission + red shift
+                    spectrum_hypercube[x,y,z,:] += emission_profiles[i](vz[x,y,z]) * cloud[x,y,z]
+
             bar(x*N+y+1, prefix=f"{system_info()} | Red shifting")
     
     return spectrum_hypercube
@@ -350,109 +292,105 @@ def generate_observations(cloud_obs, vz_obs, verbose=False):
     
     return spectrum_hypercubes, observations
 
-spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=True)
-
-
 
 #==============================================================================
 # SAVING FIGURES
 #==============================================================================
 
 
+def save_figures(observations):
+    bar = progress.Bar(prefix=f"{system_info()} | Saving data")
 
-bar = progress.Bar(prefix=f"{system_info()} | Saving data")
+    # Observation from X+ axis ----------------------------------------------------
 
-# Observation from X+ axis ----------------------------------------------------
+    fig, axs = plt.subplots(10, 10, figsize=(30, 30))
 
-fig, axs = plt.subplots(10, 10, figsize=(30, 30))
+    # # Taking the mean of windows of N//10 pixels
+    # repr_x = np.zeros((10, 10, 100))
+    # for i in range(10):
+    #     for j in range(10):
+    #         repr_x[i,j,:] = np.mean(spectrum_hypercube_x[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
 
-# # Taking the mean of windows of N//10 pixels
-# repr_x = np.zeros((10, 10, 100))
-# for i in range(10):
-#     for j in range(10):
-#         repr_x[i,j,:] = np.mean(spectrum_hypercube_x[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
+    # Taking one pixel every 10
+    repr_x = observations[0][::N//10,::N//10, :]
 
-# Taking one pixel every 10
-repr_x = observations[0][::N//10,::N//10, :]
+    for i in range(10):
+        for j in range(10):
+            axs[i,j].plot(f, repr_x[i,j,:])
+    plt.savefig(f"{archive_path}/9_Spectrum_from_X.png")
 
-for i in range(10):
-    for j in range(10):
-        axs[i,j].plot(f, repr_x[i,j,:])
-plt.savefig(f"{archive_path}/9_Spectrum_from_X.png")
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    im = axs[0].imshow(observations[0][:,:,25], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[1].imshow(observations[0][:,:,50], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[2].imshow(observations[0][:,:,75], cmap="inferno")
+    fig.colorbar(im)
+    plt.savefig(f"{archive_path}/10_Obs_from_X.png")
+    # plt.show()
 
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-im = axs[0].imshow(observations[0][:,:,25], cmap="inferno")
-fig.colorbar(im)
-im = axs[1].imshow(observations[0][:,:,50], cmap="inferno")
-fig.colorbar(im)
-im = axs[2].imshow(observations[0][:,:,75], cmap="inferno")
-fig.colorbar(im)
-plt.savefig(f"{archive_path}/10_Obs_from_X.png")
-# plt.show()
+    bar(0.33, prefix=f"{system_info()} | Saving data")
 
-bar(0.25, prefix=f"{system_info()} | Saving data")
+    # Observation from Y+ axis ----------------------------------------------------
 
-# Observation from Y+ axis ----------------------------------------------------
+    fig, axs = plt.subplots(10, 10, figsize=(30, 30))
 
-# %%
-fig, axs = plt.subplots(10, 10, figsize=(30, 30))
+    # # Taking the mean of windows of N//10 pixels
+    # repr_y = np.zeros((10, 10, 100))
+    # for i in range(10):
+    #     for j in range(10):
+    #         repr_y[i,j,:] = np.mean(spectrum_hypercube_y[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
 
-# # Taking the mean of windows of N//10 pixels
-# repr_y = np.zeros((10, 10, 100))
-# for i in range(10):
-#     for j in range(10):
-#         repr_y[i,j,:] = np.mean(spectrum_hypercube_y[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
+    # Taking one pixel every 10
+    repr_y = observations[1][::N//10,::N//10, :]
 
-# Taking one pixel every 10
-repr_y = observations[1][::N//10,::N//10, :]
+    for i in range(10):
+        for j in range(10):
+            axs[i,j].plot(f, repr_y[i,j,:])
+    plt.savefig(f"{archive_path}/9_Spectrum_from_Y.png")
 
-for i in range(10):
-    for j in range(10):
-        axs[i,j].plot(f, repr_y[i,j,:])
-plt.savefig(f"{archive_path}/9_Spectrum_from_Y.png")
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    im = axs[0].imshow(observations[1][:,:,25], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[1].imshow(observations[1][:,:,50], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[2].imshow(observations[1][:,:,75], cmap="inferno")
+    fig.colorbar(im)
+    plt.savefig(f"{archive_path}/10_Obs_from_Y.png")
+    # plt.show()
 
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-im = axs[0].imshow(observations[1][:,:,25], cmap="inferno")
-fig.colorbar(im)
-im = axs[1].imshow(observations[1][:,:,50], cmap="inferno")
-fig.colorbar(im)
-im = axs[2].imshow(observations[1][:,:,75], cmap="inferno")
-fig.colorbar(im)
-plt.savefig(f"{archive_path}/10_Obs_from_Y.png")
-# plt.show()
+    bar(0.66, prefix=f"{system_info()} | Saving data")
 
-bar(0.5, prefix=f"{system_info()} | Saving data")
+    # # Observation from Z+ axis --------------------------------------------------
 
-# # Observation from Z+ axis --------------------------------------------------
+    fig, axs = plt.subplots(10, 10, figsize=(30, 30))
 
-fig, axs = plt.subplots(10, 10, figsize=(30, 30))
+    # # Taking the mean of windows of N//10 pixels
+    # repr_z = np.zeros((10, 10, 100))
+    # for i in range(10):
+    #     for j in range(10):
+    #         repr_z[i,j,:] = np.mean(spectrum_hypercube_z[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
 
-# # Taking the mean of windows of N//10 pixels
-# repr_z = np.zeros((10, 10, 100))
-# for i in range(10):
-#     for j in range(10):
-#         repr_z[i,j,:] = np.mean(spectrum_hypercube_z[i*N//10:(i+1)*N//10, j*N//10:(j+1)*N//10, :], axis=(0,1))
+    # Taking one pixel every 10
+    repr_z = observations[2][::N//10,::N//10, :]
 
-# Taking one pixel every 10
-repr_z = observations[2][::N//10,::N//10, :]
+    for i in range(10):
+        for j in range(10):
+            axs[i,j].plot(f, repr_z[i,j,:])
 
-for i in range(10):
-    for j in range(10):
-        axs[i,j].plot(f, repr_z[i,j,:])
+    plt.savefig(f"{archive_path}/9_Spectrum_from_Z.png")
 
-plt.savefig(f"{archive_path}/9_Spectrum_from_Z.png")
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    im = axs[0].imshow(observations[2][:,:,25], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[1].imshow(observations[2][:,:,50], cmap="inferno")
+    fig.colorbar(im)
+    im = axs[2].imshow(observations[2][:,:,75], cmap="inferno")
+    fig.colorbar(im)
+    plt.savefig(f"{archive_path}/10_Obs_from_Z.png")
+    # plt.show()
 
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-im = axs[0].imshow(observations[2][:,:,25], cmap="inferno")
-fig.colorbar(im)
-im = axs[1].imshow(observations[2][:,:,50], cmap="inferno")
-fig.colorbar(im)
-im = axs[2].imshow(observations[2][:,:,75], cmap="inferno")
-fig.colorbar(im)
-plt.savefig(f"{archive_path}/10_Obs_from_Z.png")
-# plt.show()
-
-bar(0.75, prefix=f"{system_info()} | Saving data")
+    bar(1, prefix=f"{system_info()} | Saving data")
 
 # Saving data -----------------------------------------------------------------
 
@@ -467,10 +405,6 @@ def save(i, cloud_obs, vx_obs, vy_obs, vz_obs, observations):
             observation=observations[j]
         )
 
-save(0, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
-
-bar(1, prefix=f"{system_info()} | Saving data")
-
 
 
 #==============================================================================
@@ -481,23 +415,87 @@ bar(1, prefix=f"{system_info()} | Saving data")
 
 # Generate one (replay the file once) -----------------------------------------
 
-def generate_set(i):
+def generate_set(i, feedback=False):
 
-    print(f"Generating cloud {i+2}/{nb_images}...")
+    print(f"Generating cloud {i+1}/{nb_images}...")
+    if feedback:
+        bar = progress.Bar(prefix=f"{system_info()} | Generating density field")
 
-    # Generate the cloud
-    cloud = lorentzian_3D()
-    cloud = noise(cloud)
-    cloud = fft(cloud)
-    cloud = crop(cloud)
-    cloud = plummerize(cloud)
-    cloud = guassianize(cloud)
-    cloud = normalize(cloud)
+    # # Generate the cloud 
+    # cloud = lorentzian_3D()
 
-    # Compute the velocity
-    v_grad = velocity_grad(cloud)
-    v_rot = velocity_rot()
-    v = velocity_average(*v_grad, *v_rot)
+    # if feedback:
+    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/1_lorentzian.png")
+    #     bar(0.1, prefix=f"{system_info()} | Generating density field")
+
+    # cloud = noise(cloud)
+
+    # if feedback:
+    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/2_noise.png")
+    #     bar(0.3, prefix=f"{system_info()} | Generating density field")
+
+    # cloud = fft(cloud)
+    # cloud = crop(cloud)
+
+    # if feedback:
+    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/3_fft.png")
+    #     bar(0.5, prefix=f"{system_info()} | Generating density field")
+
+    # cloud = plummerize(cloud)
+
+    # plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/4_plummer.png")
+    # bar(0.7, prefix=f"{system_info()} | Generating density field")
+
+    # cloud = guassianize(cloud)
+
+    # if feedback:
+    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian.png")
+    #     bar(0.9, prefix=f"{system_info()} | Generating density field")
+    
+    ### TO REMOVE (TESTING WITH SIMPLE PARAMETERS)
+    cloud = gaussian(np.sqrt(X**2 + Y**2 + Z**2), 0, 1)
+    plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/test_gaussian.png")
+    ###
+
+    # cloud = normalize(cloud)
+    # plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian_normalized.png")
+
+    # if feedback:
+    #     savevtk(cloud, N, f'{archive_path}/cloud')
+    #     bar(1, prefix=f"{system_info()} | Generating density field")
+
+    # # Compute the velocity
+    # if feedback:
+    #     bar(0, prefix=f"{system_info()} | Generating velocity field")
+
+    # v_grad = velocity_grad(cloud)
+
+    # if feedback:
+    #     plot.sum_in_3_directions(v_grad[0], "seismic_r", save_as=f"{archive_path}/6_vx_grad.png")
+    #     plot.sum_in_3_directions(v_grad[1], "seismic_r", save_as=f"{archive_path}/6_vy_grad.png")
+    #     plot.sum_in_3_directions(v_grad[2], "seismic_r", save_as=f"{archive_path}/6_vz_grad.png")
+    #     bar(0.33, prefix=f"{system_info()} | Generating velocity field")
+
+    # v_rot = velocity_rot()
+
+    # if feedback:
+    #     plot.sum_in_3_directions(v_rot[0], "seismic_r", save_as=f"{archive_path}/7_vx_rot.png")
+    #     plot.sum_in_3_directions(v_rot[1], "seismic_r", save_as=f"{archive_path}/7_vy_rot.png")
+    #     plot.sum_in_3_directions(v_rot[2], "seismic_r", save_as=f"{archive_path}/7_vz_rot.png")
+    #     bar(0.66, prefix=f"{system_info()} | Generating velocity field")
+
+    # v = velocity_average(*v_grad, *v_rot)
+
+    # if feedback:
+    #     plot.sum_in_3_directions(v[0], "seismic_r", save_as=f"{archive_path}/8_vx.png")
+    #     plot.sum_in_3_directions(v[1], "seismic_r", save_as=f"{archive_path}/8_vy.png")
+    #     plot.sum_in_3_directions(v[2], "seismic_r", save_as=f"{archive_path}/8_vz.png")
+    #     bar(1, prefix=f"{system_info()} | Generating velocity field")
+
+    v = np.empty((3, N, N, N))
+    for i in range(3):
+        v[i] = lorentzian(np.sqrt(X**2 + Y**2 + Z**2), 0, 0.3)
+        plot.sum_in_3_directions(cloud, "seismic_r", save_as=f"{archive_path}/test_velocity.png")
 
     # Rotate the data
     cloud_obs, vx_obs, vy_obs, vz_obs = rotate_data(cloud, v)
@@ -505,9 +503,11 @@ def generate_set(i):
     # Compute observations
     spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=False)
 
-    save(i+1, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
+    save(i, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
 
 # Generate the dataset --------------------------------------------------------
+
+generate_set(0, feedback=True)
 
 print(f"Verify that the program generated what you want in {archive_path}")
 choice = input("Do you want to generate the dataset? (Y/n) ")
@@ -516,8 +516,8 @@ if choice.lower() not in ["", "y", "yes"]:
     exit()
 
 pool = Pool(ncpu)
-for i in  range(nb_images-1):
-    pool.apply_async(func=generate_set, args=(i,))
+for i in range(nb_images-1):
+    pool.apply_async(func=generate_set, args=(i+1,))
 
 pool.close()
 pool.join()

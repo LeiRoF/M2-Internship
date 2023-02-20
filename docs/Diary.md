@@ -162,6 +162,11 @@
   - The Scanner method is definitely not usable because we need the global informations. Only the Hourglass method is usable among the one I presented. There is probably other methods that could be used but I don't know them yet.
 - Starting to follow the Fidle course on Deep Learning to figure out how to solved this kind of 3D -> 3D problem.
 
+## 20/02/2023
+
+- Started to simplify the cloud generation and drawed the models as I unterdstood them. Waiting the tommorow meeting with Julien to validate them.
+- Following [Fidle](https://gricad-gitlab.univ-grenoble-alpes.fr/talks/fidle/-/wikis/home) lessons about Machine Learning
+
 <script src="https://giscus.app/client.js"
         data-repo="Leirof/M2-Prestel-state-from-obs-ML"
         data-repo-id="R_kgDOI4ZFbQ"

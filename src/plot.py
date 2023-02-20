@@ -29,7 +29,10 @@ def space_3D(matrix, X,Y,Z):
     print(dots_z.shape)
     print(color.shape)
 
-    plt.scatter(dots_x, dots_y, dots_z, c=color, cmap='viridis', linewidth=0.5)                
+    plt.scatter(dots_x, dots_y, dots_z, c=color, cmap='viridis', linewidth=0.5)   
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.zlabel('Z')        
     plt.colorbar()
     plt.show()
 
@@ -42,12 +45,21 @@ def sum_in_3_directions(matrix, cmap='inferno', save_as=None):
     fig, axs = plt.subplots(1,3, figsize=(15,5))
     im = axs[0].imshow(sum_x, cmap=cmap)
     fig.colorbar(im)
+    axs[0].set_title('Seen from X+')
+    axs[0].set_xlabel('Y')
+    axs[0].set_ylabel('Z')
     im = axs[1].imshow(sum_y, cmap=cmap)
     fig.colorbar(im)
+    axs[1].set_title('Seen from Y+')
+    axs[1].set_xlabel('X')
+    axs[1].set_ylabel('Z')
     im = axs[2].imshow(sum_z, cmap=cmap)
     fig.colorbar(im)
+    axs[2].set_title('Seen from Z+')
+    axs[2].set_xlabel('X')
+    axs[2].set_ylabel('Y')
 
     if save_as is not None:
         plt.savefig(save_as)
-    # else:
-    #     plt.show()
+    else:
+        plt.show()
