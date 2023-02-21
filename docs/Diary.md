@@ -183,3 +183,23 @@
         crossorigin="anonymous"
         async>
 </script>
+
+## 21/02/2023
+
+Let's do some physics!
+
+In an intestellar medium, we consider that we have $n$ particles in a small volume $dV$.
+
+
+
+For each frequency $\nu$, these particle have a cross section that we call $\Sigma_\nu$, that can be associated to the "size" of the particle seen at this frequency, which have a dimension $\text{L}^{-1}$ (more accurately, it describe how strongly the particle interact with this frequency). We can then define the absorption coefficient (that we can associate to the oppacity of the medium) such as:
+
+$$\kappa_\nu = n \Sigma_{\nu}$$
+
+Then, we can compute "how much" the light is absorbed by the medium along a travel $ds$ using 
+
+$$d\tau_\nu = \kappa_\nu ds$$
+
+We call this quantity the optical depth. We can then integrate it over a longer travel to know how much light is absorbed:
+
+$$\tau_\nu = \int_0^S \kappa_\nu ds$$
