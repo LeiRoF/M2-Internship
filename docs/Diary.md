@@ -188,15 +188,46 @@
 
 Let's do some physics!
 
+### Kown formulas
+
+We know that the total emitted energy is defined such as:
+
+$$dE_e = h\nu_0A_{21}n_2\phi(\nu)dV\frac{d\Omega}{4\pi}d\nu dt$$
+
+and the total absorbed energy is defined such as:
+
+$$dE_a = h\nu_0B_{12}n_1\frac{4\pi}{c}I_\nu\phi(\nu)dV\frac{d\Omega}{4\pi}d\nu dt$$
+
+with:
+
+- $h$: Planck constant
+- $\nu_0$: Frequency of the transition ($\Delta E = h\nu_0$)
+- $\phi(\nu)$: The line profile (gaussian, lorentzian, ...)
+- $d\Omega$: Solid angle of the observation
+- $d\nu$: Frequency step
+- $dt$: Time step
+- $A_{21}$: Einstein coefficient for the spontaneous emisssion
+- $B_{12}$: Einstein coefficient for the absorption
+- $n_1$: Population of not excited state (able to absorb photons)
+- $n_2$: Population of excited state (able to emit photons)
+
+In the simple simulation we want to perform, we will not consider the stimulated emission neither the collisions between particles.
+
+### Starting from scratch (trying to consolidate my knowledge on the subject by popularizing it)
+
 In an intestellar medium, we consider that we have $n$ particles in a small volume $dV$.
 
-![](img/2023-02-21-15-09-25.png)
+<div align=center>
+<img src="img/2023-02-21-15-09-25.png" style="width:400px">
+</div>
 
 For each frequency $\nu$, these particle have a cross section that we call $\Sigma_\nu$, that can be associated to the "size" of the particle seen at this frequency, which have a dimension $\text{L}^{-1}$ (more accurately, it describe how strongly the particle interact with this frequency). We can then define the absorption coefficient (that we can associate to the oppacity of the medium) such as:
 
 $$\kappa_\nu = n \Sigma_{\nu}$$
 
-![](img/2023-02-21-15-10-27.png)
+<div align=center>
+<img src="img/2023-02-21-15-53-46.png" style="width:400px">
+</div>
 
 Then, we can compute "how much" the light is absorbed by the medium along a travel $ds$ using 
 
@@ -206,4 +237,10 @@ We call this quantity the optical depth. We can then integrate it over a longer 
 
 $$\tau_\nu = \int_0^S \kappa_\nu ds$$
 
-![](img/2023-02-21-15-11-03.png)
+<div align=center>
+<img src="img/2023-02-21-15-49-32.png" style="width:400px">
+</div>
+
+We can then compute the intensity of light after a traval on a distance $S$, which is well known as the Beer-Lambert law:
+
+$$I_\nu(S) = I_\nu(0) e^{-\tau_\nu(S)}$$
