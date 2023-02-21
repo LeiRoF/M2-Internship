@@ -167,23 +167,6 @@
 - Started to simplify the cloud generation and drawed the models as I unterdstood them. Waiting the tommorow meeting with Julien to validate them.
 - Following [Fidle](https://gricad-gitlab.univ-grenoble-alpes.fr/talks/fidle/-/wikis/home) lessons about Machine Learning
 
-<script src="https://giscus.app/client.js"
-        data-repo="Leirof/M2-Prestel-state-from-obs-ML"
-        data-repo-id="R_kgDOI4ZFbQ"
-        data-category="Documentation"
-        data-category-id="DIC_kwDOI4ZFbc4CUQYG"
-        data-mapping="title"
-        data-strict="0"
-        data-reactions-enabled="0"
-        data-emit-metadata="0"
-        data-input-position="bottom"
-        data-theme="light"
-        data-lang="en"
-        data-loading="lazy"
-        crossorigin="anonymous"
-        async>
-</script>
-
 ## 21/02/2023
 
 Let's do some physics!
@@ -217,16 +200,20 @@ In the simple simulation we want to perform, we will not consider the stimulated
 
 In an intestellar medium, we consider that we have $n$ particles in a small volume $dV$.
 
-<div align=center>
-<img src="img/2023-02-21-15-09-25.png" style="width:400px">
+<div align=center style="width:400px">
+
+![](img/2023-02-21-15-09-25.png)
+
 </div>
 
 For each frequency $\nu$, these particle have a cross section that we call $\Sigma_\nu$, that can be associated to the "size" of the particle seen at this frequency, which have a dimension $\text{L}^{-1}$ (more accurately, it describe how strongly the particle interact with this frequency). We can then define the absorption coefficient (that we can associate to the oppacity of the medium) such as:
 
 $$\kappa_\nu = n \Sigma_{\nu}$$
 
-<div align=center>
-<img src="img/2023-02-21-15-53-46.png" style="width:400px">
+<div align=center style="width:400px">
+
+![](img/2023-02-21-15-53-46.png)
+
 </div>
 
 Then, we can compute "how much" the light is absorbed by the medium along a travel $ds$ using 
@@ -237,8 +224,10 @@ We call this quantity the optical depth. We can then integrate it over a longer 
 
 $$\tau_\nu = \int_0^S \kappa_\nu ds$$
 
-<div align=center>
-<img src="img/2023-02-21-15-49-32.png" style="width:400px">
+<div align=center style="width:400px">
+
+![](img/2023-02-21-15-49-32.png)
+
 </div>
 
 We can then compute the intensity of light after a traval on a distance $S$, which is well known as the Beer-Lambert law:
