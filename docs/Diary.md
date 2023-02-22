@@ -297,3 +297,6 @@ Thus, I have to implement an integrator to compute this final intensity.
 
 > PS: To implement this, I need to know $\epsilon_\nu$ and $\kappa_\nu$. In our model, $n_1$ and $n_2$ will only depend of the temperature $T=10K$. Our profile line will be a gaussian centered in the frequency $\nu_0$ (proper to the molecule) and with a width $\Delta\nu$ that we will arbitrarily define. We will also consider that the emission coefficient is constant in the medium, so I just have to find the Einstein coefficient and the spectral line of the $CO$ and $N_2$ molecules.
 
+---
+
+- Continuing to follow the Fidle lectures
