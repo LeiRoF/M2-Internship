@@ -181,9 +181,13 @@ We know that the total emitted energy is defined such as:
 
 $$dE_e = h\nu_0A_{21}n_2\phi(\nu)dV\frac{d\Omega}{4\pi}d\nu dt$$
 
-and the total absorbed energy is defined such as:
+The total absorbed energy is defined such as:
 
 $$dE_a = h\nu_0B_{12}n_1\frac{4\pi}{c}I_\nu\phi(\nu)dV\frac{d\Omega}{4\pi}d\nu dt$$
+
+The stimulated emission is defined such as:
+
+$$dE_s = h\nu_0B_{21}n_2\frac{4\pi}{c}I_\nu\phi(\nu)dV\frac{d\Omega}{4\pi}d\nu dt$$
 
 with:
 
