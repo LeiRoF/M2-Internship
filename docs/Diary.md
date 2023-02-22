@@ -169,9 +169,13 @@
 
 ## 21/02/2023
 
-Let's do some physics!
+- First tentative of radiative transfert implementation.
 
-### Kown formulas
+- Meeting with Julien Montillaud to detail the radiative transfert computation
+
+$\rightarrow$ Let's do some physics!
+
+### Known formulas
 
 We know that the total emitted energy is defined such as:
 
@@ -200,20 +204,24 @@ In the simple simulation we want to perform, we will not consider the stimulated
 
 In an intestellar medium, we consider that we have $n$ particles in a small volume $dV$.
 
-<div align=center style="width:400px">
+<div align=center>
+<div style="width:400px">
 
 ![](img/2023-02-21-15-09-25.png)
 
+</div>
 </div>
 
 For each frequency $\nu$, these particle have a cross section that we call $\Sigma_\nu$, that can be associated to the "size" of the particle seen at this frequency, which have a dimension $\text{L}^{-1}$ (more accurately, it describe how strongly the particle interact with this frequency). We can then define the absorption coefficient (that we can associate to the oppacity of the medium) such as:
 
 $$\kappa_\nu = n \Sigma_{\nu}$$
 
-<div align=center style="width:400px">
+<div align=center>
+<div style="width:400px">
 
 ![](img/2023-02-21-15-53-46.png)
 
+</div>
 </div>
 
 Then, we can compute "how much" the light is absorbed by the medium along a travel $ds$ using 
@@ -224,12 +232,59 @@ We call this quantity the optical depth. We can then integrate it over a longer 
 
 $$\tau_\nu = \int_0^S \kappa_\nu ds$$
 
-<div align=center style="width:400px">
+<div align=center>
+<div style="width:400px">
 
 ![](img/2023-02-21-15-49-32.png)
 
+</div>
 </div>
 
 We can then compute the intensity of light after a traval on a distance $S$, which is well known as the Beer-Lambert law:
 
 $$I_\nu(S) = I_\nu(0) e^{-\tau_\nu(S)}$$
+
+Ok, but this is only for purely absorbing gas. What about the emission?
+
+## 22/02/2023
+
+This equation:
+
+$$I_\nu(S) = I_\nu(0) e^{-\tau_\nu(S)}$$
+
+Is actually a solution of the following differential equation:
+
+$$\frac{dI_\nu}{ds} = -\kappa_\nu I_\nu$$
+
+In this propagation equation, there is only an absorption term $\kappa_\nu$. We can add an emission term by adding a source term:
+
+$$\frac{dI_\nu}{dq} = -\kappa_\nu I_\nu + \epsilon_\nu$$
+
+In this equation $\epsilon_\nu$ is the emission coefficient, which intuitively depend on the spontaneous emission coefficient $A_{21}$, the population of the excited state $n_2$ and the line profile $\phi(\nu)$. In fact, the emission coefficient is defined such as:
+
+$$\epsilon_\nu = \frac{h\nu_0}{4\pi}A_{21}n_2\phi(\nu)$$
+
+<div align=center>
+<div style="width:400px">
+
+![](img/2023-02-22-10-48-16.png)
+
+</div>
+</div>
+
+In the same way, we can also express the absorption coefficient as a function of the absorption coefficient $B_{12}$ and $B_{21}$, the population of the states $n_1$ and $n_2$ and the line profile $\phi(\nu)$:
+
+$$\kappa_\nu = \frac{h\nu_0}{4\pi}\left(n_1B_{12} - n_2B_{21}\right)\phi(\nu)$$
+
+A solution for the propagation equation is then:
+
+$$I_\nu(S) = I_{\nu}(0) e^{-\tau_\nu(S)} + \int_0^S \epsilon_\nu e^{\tau_\nu(S)-\tau_\nu(s)} ds$$
+
+In this simulation, I don't have initial intensity, so $I_\nu(0) = 0$, which reduce this equation to:
+
+$$I_\nu(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(S)-\tau_\nu(s)} ds$$
+
+Thus, I have to implement an integrator to compute this.
+
+In our model, $n_1$ and $n_2$ will only depend of the temperature $T=10K$. Our profile line will be a gaussian centered in the frequency $\nu_0$ (proper to the molecule) and with a width $\Delta\nu$ that we will arbitrarily define. We will also consider that the emission coefficient is constant in the medium, so I just have to find the Einstein coefficient and the spectral line of the $CO$ and $N_2$ molecules.
+
