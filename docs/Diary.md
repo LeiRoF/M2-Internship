@@ -288,7 +288,12 @@ In this simulation, I don't have initial intensity, so $I_\nu(0) = 0$, which red
 
 $$I_\nu(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(S)-\tau_\nu(s)} ds$$
 
-Thus, I have to implement an integrator to compute this.
+However, I have 2 molécules, $CO$ and $N_2$, do this equation need to take that into account:
 
-In our model, $n_1$ and $n_2$ will only depend of the temperature $T=10K$. Our profile line will be a gaussian centered in the frequency $\nu_0$ (proper to the molecule) and with a width $\Delta\nu$ that we will arbitrarily define. We will also consider that the emission coefficient is constant in the medium, so I just have to find the Einstein coefficient and the spectral line of the $CO$ and $N_2$ molecules.
+$$I_\nu(S) = \int_0^S ds (\epsilon_{\nu,CO} + \epsilon_{\nu,N_2}) \times e^{\tau_{\nu,CO}(S)-\tau_{\nu,CO}(s)} \times e^{\tau_{\nu,N_2}(S)-\tau_{\nu,N_2}(s)}$$
+
+Thus, I have to implement an integrator to compute this final intensity.
+
+
+> PS: To implement this, I need to know $\epsilon_\nu$ and $\kappa_\nu$. In our model, $n_1$ and $n_2$ will only depend of the temperature $T=10K$. Our profile line will be a gaussian centered in the frequency $\nu_0$ (proper to the molecule) and with a width $\Delta\nu$ that we will arbitrarily define. We will also consider that the emission coefficient is constant in the medium, so I just have to find the Einstein coefficient and the spectral line of the $CO$ and $N_2$ molecules.
 
