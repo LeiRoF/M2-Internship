@@ -150,31 +150,6 @@ test_y = y[int(nb_vectors * (train_frac + valid_frac)):]
 
 # Build the 3D CNN model ------------------------------------------------------
 
-# def get_model(input_shape, output_shape):
-
-#     # Encoder
-#     inputs = tf.keras.Input(shape=input_shape)
-#     x = tf.keras.layers.Conv2D(32, kernel_size=(10, 10), activation='relu', kernel_initializer='he_uniform')(inputs)
-#     x = tf.keras.layers.MaxPooling2D(pool_size=(4, 4))(x)
-#     x = tf.keras.layers.Conv2D(64, kernel_size=(5, 5), activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.MaxPooling2D(pool_size=(4, 4))(x)
-#     x = tf.keras.layers.Flatten()(x)
-#     x = tf.keras.layers.Dense(256, activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_uniform')(x)
-
-#     # Decoder
-#     x = tf.keras.layers.Dense(256, activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.Dense(128 * 4 * 4, activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.Reshape((4, 4, 4, 32))(x)
-#     x = tf.keras.layers.Conv3DTranspose(64, kernel_size=(5, 5, 5), activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.UpSampling3D(size=(4, 4, 4))(x)
-#     x = tf.keras.layers.Conv3DTranspose(32, kernel_size=(10, 10, 10), activation='relu', kernel_initializer='he_uniform')(x)
-#     x = tf.keras.layers.UpSampling3D(size=(4, 4, 4))(x)
-
-#     model = tf.keras.models.Model(inputs=inputs, outputs=x)
-
-#     return model
-
 def get_model(input_shape, output_shape):
     from keras.layers import Input, Dense, Conv2D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten
     from keras.models import Model
@@ -183,15 +158,14 @@ def get_model(input_shape, output_shape):
     input_img = Input(shape=(64, 64, 100))
 
     # Encoder
-    x = Conv2D(32, (5, 5), activation='relu', padding='same')(input_img)
-    x = MaxPooling2D((4, 4), padding='same')(x)
-    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
-    x = MaxPooling2D((4, 4), padding='same')(x)
+    x = Conv2D(32, (15, 15), activation='relu', padding='same')(input_img)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(64, (5, 5), activation='relu', padding='same')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
     x = Flatten()(x)
-    x = Dense(256, activation='relu')(x)
+    x = Dense(1024, activation='relu')(x)
 
     # Decoder
-    x = Dense(256, activation='relu')(x)
     x = Dense(32 * 4 * 4 * 4, activation='relu')(x)
     x = Reshape((4, 4, 4, 32))(x)
     x = Conv3DTranspose(32, (3, 3, 3), activation='relu', padding='same')(x)
@@ -207,8 +181,8 @@ def get_model(input_shape, output_shape):
 # Compile and get summary -----------------------------------------------------
 
 model = get_model(x[0].shape, y[0].shape)
-model.compile(optimizer='adam', loss='binary_crossentropy')
-# model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+# model.compile(optimizer='adam', loss='binary_crossentropy')
+model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
 model.summary()
 
 choice = input("Continue ? [Y/n]")
