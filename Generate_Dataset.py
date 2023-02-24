@@ -13,28 +13,48 @@ import psutil
 # Config ----------------------------------------------------------------------
 
 N = 64 # resolution in pixel
-space_range = [-1, 1] # space interval (arbitrary unit)
+space_range = [-1, 1] # range of the space in pc
 
 nb_images = 1000 # number of generated image
-# ⚠️ Be carefull, the final dataset will be proportional to 6 * nb_images * N^2
+# ⚠️ Be carefull, the final dataset will be proportional to 6 * nb_images
 
-# For gaussian and lorentzian profiles
-m = 1
-s = 0.05
+CO_n1  = 1000
+N2H_N1 = 1000
 
-# For voigt profile
-sigma = 0.01
-gamma = 0.2
+CO_v0  = 115.27120e9 # Hz
+N2H_v0 = 93.17371e9 # Hz
 
-# frequency range
-f = np.linspace(0, 2, 100)
+CO_A12 = 7.203e-8 # s-1
+CO_B12 = 2.574e-6 # cm+2 . erg-1 . s-1
+CO_B21 = 2.713e-6 # cm+2 . erg-1 . s-1
+
+N2H_A12 = 3.929e-5 # s-1
+N2H_B12 = 1.226e-5 # cm+2 . erg-1 . s-1
+N2H_B21 = 2.832e-5 # cm+2 . erg-1 . s-1
+
+sigma = 1 # cm-1
+
+CO_n1_over_n2 = 3
+N2H_n1_over_n2 = 1
+
+CO_n2 = CO_n1 / CO_n1_over_n2
+N2H_n2 = N2H_N1 / N2H_n1_over_n2
+
+h = 6.62607004e-34 # J.s
+pi = 3.14159265359
+
+CO_v = np.linspace(CO_v0 - 10, CO_v0 + 10, 100)
+N2H_v = np.linspace(N2H_v0 - 10, N2H_v0 + 10, 100)
+
+
+
 
 # Init ------------------------------------------------------------------------
 
 r, dr = np.linspace(space_range[0], space_range[1], N, endpoint=True, retstep=True)
 X, Y, Z = np.meshgrid(r, r, r)
 
-archive_path = archive.new("Generation", verbose=True, N=N, m=m,s=s,f_step=100)
+archive_path = archive.new("Generation", verbose=True)
 
 try:
     ncpu = cpu_count()
@@ -69,7 +89,24 @@ def system_info():
         + f", RAM: {psutil.virtual_memory().percent}%"\
         + f" ({psutil.virtual_memory().used/1024**3:.2f}GB"\
         + f"/ {psutil.virtual_memory().total/1024**3:.2f}GB)"
-                
+
+# ------------------------------------------------------------------------------------------------------------------------------
+
+def phi(v, v0, s):
+    return gaussian(v, v0, s)
+    
+CO_phi = phi(CO_v, CO_v0, sigma)
+N2H_phi = phi(N2H_v, N2H_v0, sigma)
+
+plt.figure()
+plt.plot(CO_v, CO_phi)
+plt.savefig(f"{archive_path}/CO_phi.png")
+
+plt.figure()
+plt.plot(N2H_v, N2H_phi)
+plt.savefig(f"{archive_path}/N2H_phi.png")
+
+"""
 
 
 
@@ -147,7 +184,7 @@ def velocity_grad(cloud: np.ndarray) -> list[np.ndarray]:
 
     # Removing aberrant values at the edges
     for i in range(3):
-        v_grad[i] = grad[i] / np.amax(np.abs(grad[i]))
+        v_grad[i] = 0 #grad[i] / np.amax(np.abs(grad[i]))
         v_grad[i,0,:,:] = 0
         v_grad[i,-1,:,:] = 0
         v_grad[i,:,0,:] = 0
@@ -160,9 +197,9 @@ def velocity_grad(cloud: np.ndarray) -> list[np.ndarray]:
 # Rotational speed ------------------------------------------------------------
 
 def velocity_rot() -> list[np.ndarray]:
-    vx_rot = -Y / np.amax(np.abs(Y))
-    vy_rot = X  / np.amax(np.abs(X))
-    vz_rot = X * 0
+    vx_rot = 0 #-Y / np.amax(np.abs(Y))
+    vy_rot = 0 #X  / np.amax(np.abs(X))
+    vz_rot = 0 #X * 0
 
     return vx_rot, vy_rot, vz_rot
 
@@ -260,11 +297,21 @@ def compute_spectrum_hypercube(cloud, vz, verbose=False):
 
     spectrum_hypercube = np.zeros((N, N, N, len(f)))
 
+    def phi(v, v0, s):
+        return gaussian(v, v0, s)
+    
+    CO_phi = phi(CO_v, CO_v0, sigma)
+    N2H_phi = phi(N2H_v, N2H_v0, sigma)
+
+
     if verbose:
         bar = progress.Bar(N**2, prefix="Generating spectra")
     for x in range(N):
         for y in range(N):
             for z in range(N):
+
+
+
                 spectrum_hypercube[x,y,z,:] = lorentzian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
                 # spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
                 # spectrum_hypercube[x,y,z,:] = voigt_profile(f+3*vz[x,y,z], sigma, gamma) * cloud[x,y,z]
@@ -539,3 +586,4 @@ for i in range(nb_images-1):
 pool.close()
 pool.join()
 
+"""
