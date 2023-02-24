@@ -17,6 +17,7 @@ import psutil
 
 valid_frac = 0.2
 test_frac  = 0.1
+dataset_path = "/scratch/vforiel/dataset"
 
 # Global variables ------------------------------------------------------------
 
@@ -28,6 +29,13 @@ except:
     with open(os.getenv("OAR_NODEFILE"), 'r') as f:
         ncpu = len(f.readlines())
 
+# Useful functions ------------------------------------------------------------
+
+def system_info():
+    return f"CPU: {psutil.cpu_percent()}%"\
+        + f", RAM: {psutil.virtual_memory().percent}%"\
+        + f" ({psutil.virtual_memory().used/1024**3:.2f}GB"\
+        + f"/ {psutil.virtual_memory().total/1024**3:.2f}GB)"
 
 
 #==============================================================================
@@ -58,7 +66,7 @@ To simplify the neural network and potentially increase it's accuracy, we will n
 # Read one file ---------------------------------------------------------------
 
 def load_file(file):
-    data = np.load("dataset/" + file)
+    data = np.load(f"{dataset_path}/{file}")
     return data
 
 # Load data -------------------------------------------------------------------
@@ -68,45 +76,33 @@ def load_data() -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
     - list[3D-ndarray] : input vectors
     - list[3D-ndarray] : output vectors
     """
-    x = []
-    y0 = []
-    y1 = []
-    y2 = []
-    y3 = []
 
-    window_size = 5
+    max_files = 1000
 
-    width = (window_size-1)//2
+    files = os.listdir(dataset_path)
 
-    for file in os.listdir("dataset/")[0:2]:
-        data = np.load("dataset/" + file)
-        crop = np.arange(width, data["observation"].shape[1]-width)
+    nb_files = min(len(files), max_files)
+
+    with np.load(f"{dataset_path}/{files[0]}") as data:
+        x = np.empty((nb_files, *data["observation"].shape))
+        y = np.empty((nb_files, *data["vz"].shape))
+
+    bar = progress.Bar(nb_files, "Loading data")
+    for i, file in enumerate(files):
+        if i >= max_files:
+            break
         
-        bar = progress.Bar(len(crop)**2, prefix=f"{file}, {len(x)}")
-        for n, i in enumerate(crop):
-            for m, j in enumerate(crop):
-                
-                prefix = f"CPU: {psutil.cpu_percent()}%, RAM: {psutil.virtual_memory().percent}% ({psutil.virtual_memory().used/1024**3:.2f}GB / {psutil.virtual_memory().total/1024**3:.2f}GB)"
-                
-                bar(n*len(crop)+m, prefix=f"{file} | {prefix}")
-                # print("------")
-                # print(file,i,j)
-                x.append(data["observation"][i-width:i+width+1, j-width:j+width+1, :])
-                # print("x",x[-1].shape)
-                y0.append(data["cloud"][i, j, :])
-                # print("y0",y0[-1].shape)
-                y1.append(data["vx"][i, j, :])
-                # print("y1",y1[-1].shape)
-                y2.append(data["vy"][i, j, :])
-                # print("y2",y2[-1].shape)
-                y3.append(data["vz"][i, j, :])
-                # print("y3",y3[-1].shape)
-    
-    bar(len(crop))
+        bar(i, prefix=system_info())
+
+        data = np.load(f"{dataset_path}/{file}")
+        x[i] = data["observation"]
+        y[i] = data["vz"]
+        
+    bar(nb_files)
 
     print("x shape: ", np.array(x).shape)
     
-    return x, y0, y1, y2, y3
+    return x, y
 
 
 
@@ -122,177 +118,130 @@ This part only consist to check the data consistency, normalize it and split the
 
 # Check data consistency -----------------------------------------------------
 
-x, y0, y1, y2, y3 = load_data()
-assert len(x) == len(y0) == len(y1) == len(y2) == len(y3), f"x and y must have the same length, found {len(x)}, {len(y0)}, {len(y1)}, {len(y2)}, {len(y3)}"
-x = np.array(x)
-y0 = np.array(y0)
-y1 = np.array(y1)
-y2 = np.array(y2)
-y3 = np.array(y3)
-
-# Getting dimensions ---------------------------------------------------------
-
+x, y = load_data()
+assert len(x) == len(y), f"x and y must have the same length, found {len(x)}, {len(y)}"
 nb_vectors = len(x)
-
-len_x = x.shape[3]
-len_y0 = y0.shape[3]
-len_y1 = y1.shape[3]
-len_y2 = y2.shape[3]
-len_y3 = y3.shape[3]
 
 # Normalizing data ------------------------------------------------------------
 
 x /= np.max(np.abs(x))
-y0 /= np.max(np.abs(y0))
-y1 /= np.max(np.abs(y1))
-y2 /= np.max(np.abs(y2))
-y3 /= np.max(np.abs(y3))
+y /= np.max(np.abs(y))
 
 # Splitting datasets ----------------------------------------------------------
 
 train_frac = 1 - valid_frac - test_frac
 
 train_x = x[:int(nb_vectors * train_frac)]
-train_y0 = y0[:int(nb_vectors * train_frac)]
-train_y1 = y1[:int(nb_vectors * train_frac)]
-train_y2 = y2[:int(nb_vectors * train_frac)]
-train_y3 = y3[:int(nb_vectors * train_frac)]
-train_y = [train_y0, train_y1, train_y2, train_y3]
+train_y = y[:int(nb_vectors * train_frac)]
 
 valid_x = x[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
-valid_y0 = y0[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
-valid_y1 = y1[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
-valid_y2 = y2[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
-valid_y3 = y3[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
-valid_y = [valid_y0, valid_y1, valid_y2, valid_y3]
+valid_y = y[int(nb_vectors * train_frac):int(nb_vectors * (train_frac + valid_frac))]
 
 test_x = x[int(nb_vectors * (train_frac + valid_frac)):]
-test_y0 = y0[int(nb_vectors * (train_frac + valid_frac)):]
-test_y1 = y1[int(nb_vectors * (train_frac + valid_frac)):]
-test_y2 = y2[int(nb_vectors * (train_frac + valid_frac)):]
-test_y3 = y3[int(nb_vectors * (train_frac + valid_frac)):]
-test_y = [test_y0, test_y1, test_y2, test_y3]
+test_y = y[int(nb_vectors * (train_frac + valid_frac)):]
+
+
 
 #==============================================================================
 # Model definition
 #==============================================================================
 
+
+
 # Build the 3D CNN model ------------------------------------------------------
 
+# def get_model(input_shape, output_shape):
+
+#     # Encoder
+#     inputs = tf.keras.Input(shape=input_shape)
+#     x = tf.keras.layers.Conv2D(32, kernel_size=(10, 10), activation='relu', kernel_initializer='he_uniform')(inputs)
+#     x = tf.keras.layers.MaxPooling2D(pool_size=(4, 4))(x)
+#     x = tf.keras.layers.Conv2D(64, kernel_size=(5, 5), activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.MaxPooling2D(pool_size=(4, 4))(x)
+#     x = tf.keras.layers.Flatten()(x)
+#     x = tf.keras.layers.Dense(256, activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.Dense(64, activation='relu', kernel_initializer='he_uniform')(x)
+
+#     # Decoder
+#     x = tf.keras.layers.Dense(256, activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.Dense(128 * 4 * 4, activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.Reshape((4, 4, 4, 32))(x)
+#     x = tf.keras.layers.Conv3DTranspose(64, kernel_size=(5, 5, 5), activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.UpSampling3D(size=(4, 4, 4))(x)
+#     x = tf.keras.layers.Conv3DTranspose(32, kernel_size=(10, 10, 10), activation='relu', kernel_initializer='he_uniform')(x)
+#     x = tf.keras.layers.UpSampling3D(size=(4, 4, 4))(x)
+
+#     model = tf.keras.models.Model(inputs=inputs, outputs=x)
+
+#     return model
+
 def get_model(input_shape, output_shape):
+    from keras.layers import Input, Dense, Conv2D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten
+    from keras.models import Model
 
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Conv3D(32, kernel_size=(15, 15, 3), activation='relu', kernel_initializer='he_uniform', input_shape=input_shape))
-    # > Utile ?
-    # model.add(tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)))
-    model.add(tf.keras.layers.Conv3D(64, kernel_size=(5, 5, 3), activation='relu', kernel_initializer='he_uniform'))
-    # model.add(tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)))
-    # <
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(np.prod(output_shape), activation='relu', kernel_initializer='he_uniform'))
-    model.add(tf.keras.layers.Dense(np.prod(output_shape), activation='relu', kernel_initializer='he_uniform'))
-    model.add(tf.keras.layers.Dense(np.prod(output_shape), activation='relu', kernel_initializer='he_uniform'))
-    # > Utile ?
-    # model.add(tf.keras.layers.Dense(np.prod(output_shape), activation='softmax'))
-    # <
-    model.add(tf.keras.layers.Reshape(output_shape))
+    # Définir la forme de l'image d'entrée
+    input_img = Input(shape=(64, 64, 100))
 
-    return model
+    # Encoder
+    x = Conv2D(32, (5, 5), activation='relu', padding='same')(input_img)
+    x = MaxPooling2D((4, 4), padding='same')(x)
+    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = MaxPooling2D((4, 4), padding='same')(x)
+    x = Flatten()(x)
+    x = Dense(256, activation='relu')(x)
 
-# # Training models
+    # Decoder
+    x = Dense(256, activation='relu')(x)
+    x = Dense(32 * 4 * 4 * 4, activation='relu')(x)
+    x = Reshape((4, 4, 4, 32))(x)
+    x = Conv3DTranspose(32, (3, 3, 3), activation='relu', padding='same')(x)
+    x = UpSampling3D((4, 4, 4))(x)
+    x = Conv3DTranspose(1, (5, 5, 5), activation='relu', padding='same')(x)
+    decoded = UpSampling3D((4, 4, 4))(x)
 
-# %%
-# Training model for y0
+    # Modèle d'auto-encodeur
+    autoencoder = Model(input_img, decoded)
 
-model0 = get_model(input_shape, output0_shape)
-model0.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-model0.fit(train_x, train_y0, epochs=10, batch_size=32, validation_data=(valid_x, valid_y0))
-model0.save(f'{archive_path}/model0.h5')
+    return autoencoder
 
-# %%
-# Training model for y1
+# Compile and get summary -----------------------------------------------------
 
-model1 = get_model(input_shape, output0_shape)
-model1.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-model1.fit(train_x, train_y1, epochs=10, batch_size=32, validation_data=(valid_x, valid_y1))
-model1.save(f'{archive_path}/model1.h5')
+model = get_model(x[0].shape, y[0].shape)
+model.compile(optimizer='adam', loss='binary_crossentropy')
+# model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+model.summary()
 
-# %%
-# Training model for y2
+choice = input("Continue ? [Y/n]")
 
-model2 = get_model(input_shape, output0_shape)
-model2.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-model2.fit(train_x, train_y2, epochs=10, batch_size=32, validation_data=(valid_x, valid_y2))
-model2.save(f'{archive_path}/model2.h5')
+if choice.lower() not in ["", "y", "yes"]:
+    exit()
 
-# %%
-# Training model for y3
+# Training model --------------------------------------------------------------
 
-model3 = get_model(input_shape, output0_shape)
-model3.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-model3.fit(train_x, train_y3, epochs=10, batch_size=32, validation_data=(valid_x, valid_y3))
-model3.save(f'{archive_path}/model3.h5')
+print("++++++")
 
-# %% [markdown]
-# ---
-# 
-# # Evaluating models
+print(train_x.shape, train_y.shape, valid_x.shape, valid_y.shape)
 
-# %%
-# Evaluate model for y0
+print("++++++")
 
-score0 = model0.evaluate(test_x, test_y0, verbose=0)
-print('Test loss:', score0[0])
-print('Test accuracy:', score0[1])
+model.fit(train_x, train_y, epochs=10, batch_size=32, validation_data=(valid_x, valid_y))
+model.save(f'{archive_path}/model0.h5')
 
-# %%
-# Evaluate model for y1
+# Evaluating model -----------------------------------------------------------
 
-score1 = model1.evaluate(test_x, test_y1, verbose=0)
-print('Test loss:', score1[0])
-print('Test accuracy:', score1[1])
+score = model.evaluate(test_x, test_y, verbose=0)
+print("Score:", score)
 
-# %%
-# Evaluate model for y2
-
-score2 = model2.evaluate(test_x, test_y2, verbose=0)
-print('Test loss:', score2[0])
-print('Test accuracy:', score2[1])
-
-# %%
-# Evaluate model for y3
-
-score3 = model3.evaluate(test_x, test_y3, verbose=0)
-print('Test loss:', score3[0])
-print('Test accuracy:', score3[1])
-
-# %%
 with open(f'{archive_path}/scores.txt', 'w') as f:
-    f.write('\t\t\t\tModel 0\tModel 1\tModel 2\tModel 3\n')
-    f.write(f'Test loss:    \t{round(score0[0],3)}\t{round(score1[0],3)}\t{round(score2[0],3)}\t{round(score3[0],3)}\n')
-    f.write(f'Test accuracy:\t{round(score0[1],3)}\t{round(score1[1],3)}\t{round(score2[1],3)}\t{round(score3[1],3)}\n')
+    f.write(f'Score:    \t{score}\n')
 
-# %% [markdown]
-# ---
-# 
-# # Prediction
+# Prediction -----------------------------------------------------------------
 
-# %%
-print(x.shape)
 x_prediction = [x[0,...]]
 x_prediction = np.expand_dims(x_prediction, axis=-1)
 print(x_prediction.shape)
 
-y0_prediction = model0.predict(x_prediction)
-print(y0_prediction.shape)
+y_prediction = model.predict(x_prediction)
+print(y_prediction.shape)
 
-# y1_prediction = model1.predict([x_prediction])
-# print(y1_prediction.shape)
-
-# y2_prediction = model2.predict([x_prediction])
-# print(y2_prediction.shape)
-
-# y3_prediction = model3.predict([x_prediction])
-# print(y3_prediction.shape)
-
-
+np.savez_compressed(f'{archive_path}/prediction.npz', x=x_prediction, y=y_prediction)

@@ -15,7 +15,7 @@ import psutil
 N = 64 # resolution in pixel
 space_range = [-1, 1] # space interval (arbitrary unit)
 
-nb_images = 10 # number of generated image
+nb_images = 1000 # number of generated image
 # ⚠️ Be carefull, the final dataset will be proportional to 6 * nb_images * N^2
 
 # For gaussian and lorentzian profiles
@@ -34,7 +34,7 @@ f = np.linspace(0, 2, 100)
 r, dr = np.linspace(space_range[0], space_range[1], N, endpoint=True, retstep=True)
 X, Y, Z = np.meshgrid(r, r, r)
 
-archive_path = archive.new("Generation", verbose=True)
+archive_path = archive.new("Generation", verbose=True, N=N, m=m,s=s,f_step=100)
 
 try:
     ncpu = cpu_count()
@@ -193,8 +193,9 @@ def velocity_average(vx_grad, vy_grad, vz_grad, vx_rot, vy_rot, vz_rot) -> list[
 
 # Rotation of data according to the observation axis --------------------------
 
-def rotate_data(cloud, v):
-    bar = progress.Bar(N**2, prefix=f"{system_info()} | Rotating data")
+def rotate_data(cloud, v, verbose):
+    if verbose:
+        bar = progress.Bar(N**2, prefix=f"{system_info()} | Rotating data")
 
     cloud_obs = []
     vx_obs = []
@@ -245,33 +246,31 @@ def rotate_data(cloud, v):
                 vy_obs[5][x,y,z] = vy[-(x+1),y,-(z+1)]
                 vz_obs[5][x,y,z] = vz[-(x+1),y,-(z+1)]
 
-            bar(x*N+y+1, prefix=f"{system_info()} | Rotating data")
+            if verbose:
+                bar(x*N+y+1, prefix=f"{system_info()} | Rotating data")
 
     return cloud_obs, vx_obs, vy_obs, vz_obs
 
 # Red shift -------------------------------------------------------------------
 
-def compute_spectrum_hypercube(clouds, optical_depth_maps, emission_profiles, vz):  
-    bar = progress.Bar(N**2, prefix=f"{system_info()} | Red shifting")
+def compute_spectrum_hypercube(cloud, vz, verbose=False):  
+
+    if verbose:
+        bar = progress.Bar(N**2, prefix=f"{system_info()} | Red shifting")
 
     spectrum_hypercube = np.zeros((N, N, N, len(f)))
 
-    bar = progress.Bar(N**2, prefix="Generating spectra")
+    if verbose:
+        bar = progress.Bar(N**2, prefix="Generating spectra")
     for x in range(N):
         for y in range(N):
-            for z in range(N): # z : 0 -> N-1
-                for i, cloud in enumerate(clouds):
-
-                    # Extinction
-                    if z > 0:
-                        spectrum_hypercube[x,y,z,:] += spectrum_hypercube[x,y,z-1,:] \
-                                                    * cloud[x,y,z] \
-                                                    * optical_depth_maps[i](vz[x,y,z-1] - vz[x,y,z])
-                    
-                    # Emission + red shift
-                    spectrum_hypercube[x,y,z,:] += emission_profiles[i](vz[x,y,z]) * cloud[x,y,z]
-
-            bar(x*N+y+1, prefix=f"{system_info()} | Red shifting")
+            for z in range(N):
+                spectrum_hypercube[x,y,z,:] = lorentzian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
+                # spectrum_hypercube[x,y,z,:] = gaussian(f+3*vz[x,y,z], m, s) * cloud[x,y,z]
+                # spectrum_hypercube[x,y,z,:] = voigt_profile(f+3*vz[x,y,z], sigma, gamma) * cloud[x,y,z]
+            
+            if verbose:
+                bar(x*N+y+1, prefix=f"{system_info()} | Red shifting")
     
     return spectrum_hypercube
 
@@ -286,8 +285,9 @@ def generate_observations(cloud_obs, vz_obs, verbose=False):
     spectrum_hypercubes = []
     observations = []
     for i in range(6):
-        print(f"Observation {i+1}/6")
-        spectrum_hypercubes.append(compute_spectrum_hypercube(cloud_obs[i], vz_obs[i]))
+        if verbose:
+            print(f"Observation {i+1}/6")
+        spectrum_hypercubes.append(compute_spectrum_hypercube(cloud_obs[i], vz_obs[i], verbose))
         observations.append(observe(spectrum_hypercubes[-1]))
     
     return spectrum_hypercubes, observations
@@ -395,12 +395,16 @@ def save_figures(observations):
 # Saving data -----------------------------------------------------------------
 
 def save(i, cloud_obs, vx_obs, vy_obs, vz_obs, observations):
+
+    path = "/scratch/vforiel/dataset"
+    if not os.path.exists(path):
+        os.makedirs(path)
     for j in range(6):
         np.savez_compressed(
-            f"dataset/cloud_{i}_obs_{j}.npz",
-            cloud=cloud_obs[j],
-            vx=vx_obs[j],
-            vy=vy_obs[j],
+            f"{path}/cloud_{i}_obs_{j}.npz",
+            # cloud=cloud_obs[j],
+            # vx=vx_obs[j],
+            # vy=vy_obs[j],
             vz=vz_obs[j],
             observation=observations[j]
         )
@@ -417,107 +421,120 @@ def save(i, cloud_obs, vx_obs, vy_obs, vz_obs, observations):
 
 def generate_set(i, feedback=False):
 
-    print(f"Generating cloud {i+1}/{nb_images}...")
     if feedback:
+        print(f"Generating cloud {i+1}/{nb_images}...")
         bar = progress.Bar(prefix=f"{system_info()} | Generating density field")
 
-    # # Generate the cloud 
-    # cloud = lorentzian_3D()
+    # Generate the cloud 
+    cloud = lorentzian_3D()
 
-    # if feedback:
-    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/1_lorentzian.png")
-    #     bar(0.1, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/1_lorentzian.png")
+        bar(0.1, prefix=f"{system_info()} | Generating density field")
 
-    # cloud = noise(cloud)
+    cloud = noise(cloud)
 
-    # if feedback:
-    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/2_noise.png")
-    #     bar(0.3, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/2_noise.png")
+        bar(0.3, prefix=f"{system_info()} | Generating density field")
 
-    # cloud = fft(cloud)
-    # cloud = crop(cloud)
+    cloud = fft(cloud)
+    cloud = crop(cloud)
 
-    # if feedback:
-    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/3_fft.png")
-    #     bar(0.5, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/3_fft.png")
+        bar(0.5, prefix=f"{system_info()} | Generating density field")
 
-    # cloud = plummerize(cloud)
+    cloud = plummerize(cloud)
 
-    # plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/4_plummer.png")
-    # bar(0.7, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/4_plummer.png")
+        bar(0.7, prefix=f"{system_info()} | Generating density field")
 
-    # cloud = guassianize(cloud)
+    cloud = guassianize(cloud)
 
-    # if feedback:
-    #     plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian.png")
-    #     bar(0.9, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian.png")
+        bar(0.9, prefix=f"{system_info()} | Generating density field")
     
     ### TO REMOVE (TESTING WITH SIMPLE PARAMETERS)
-    cloud = gaussian(np.sqrt(X**2 + Y**2 + Z**2), 0, 1)
-    plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/test_gaussian.png")
+    # cloud = gaussian(np.sqrt(X**2 + Y**2 + Z**2), 0, 1)
+    # plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/test_gaussian.png")
     ###
 
-    # cloud = normalize(cloud)
-    # plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian_normalized.png")
+    cloud = normalize(cloud)
+    plot.sum_in_3_directions(cloud, save_as=f"{archive_path}/5_gaussian_normalized.png")
 
-    # if feedback:
-    #     savevtk(cloud, N, f'{archive_path}/cloud')
-    #     bar(1, prefix=f"{system_info()} | Generating density field")
+    if feedback:
+        savevtk(cloud, N, f'{archive_path}/cloud')
+        bar(1, prefix=f"{system_info()} | Generating density field")
 
-    # # Compute the velocity
-    # if feedback:
-    #     bar(0, prefix=f"{system_info()} | Generating velocity field")
+    # Compute the velocity
+    if feedback:
+        bar(0, prefix=f"{system_info()} | Generating velocity field")
 
-    # v_grad = velocity_grad(cloud)
+    v_grad = velocity_grad(cloud)
 
-    # if feedback:
-    #     plot.sum_in_3_directions(v_grad[0], "seismic_r", save_as=f"{archive_path}/6_vx_grad.png")
-    #     plot.sum_in_3_directions(v_grad[1], "seismic_r", save_as=f"{archive_path}/6_vy_grad.png")
-    #     plot.sum_in_3_directions(v_grad[2], "seismic_r", save_as=f"{archive_path}/6_vz_grad.png")
-    #     bar(0.33, prefix=f"{system_info()} | Generating velocity field")
+    if feedback:
+        plot.sum_in_3_directions(v_grad[0], "seismic_r", save_as=f"{archive_path}/6_vx_grad.png")
+        plot.sum_in_3_directions(v_grad[1], "seismic_r", save_as=f"{archive_path}/6_vy_grad.png")
+        plot.sum_in_3_directions(v_grad[2], "seismic_r", save_as=f"{archive_path}/6_vz_grad.png")
+        bar(0.33, prefix=f"{system_info()} | Generating velocity field")
 
-    # v_rot = velocity_rot()
+    v_rot = velocity_rot()
 
-    # if feedback:
-    #     plot.sum_in_3_directions(v_rot[0], "seismic_r", save_as=f"{archive_path}/7_vx_rot.png")
-    #     plot.sum_in_3_directions(v_rot[1], "seismic_r", save_as=f"{archive_path}/7_vy_rot.png")
-    #     plot.sum_in_3_directions(v_rot[2], "seismic_r", save_as=f"{archive_path}/7_vz_rot.png")
-    #     bar(0.66, prefix=f"{system_info()} | Generating velocity field")
+    if feedback:
+        plot.sum_in_3_directions(v_rot[0], "seismic_r", save_as=f"{archive_path}/7_vx_rot.png")
+        plot.sum_in_3_directions(v_rot[1], "seismic_r", save_as=f"{archive_path}/7_vy_rot.png")
+        plot.sum_in_3_directions(v_rot[2], "seismic_r", save_as=f"{archive_path}/7_vz_rot.png")
+        bar(0.66, prefix=f"{system_info()} | Generating velocity field")
 
-    # v = velocity_average(*v_grad, *v_rot)
+    v = velocity_average(*v_grad, *v_rot)
 
-    # if feedback:
-    #     plot.sum_in_3_directions(v[0], "seismic_r", save_as=f"{archive_path}/8_vx.png")
-    #     plot.sum_in_3_directions(v[1], "seismic_r", save_as=f"{archive_path}/8_vy.png")
-    #     plot.sum_in_3_directions(v[2], "seismic_r", save_as=f"{archive_path}/8_vz.png")
-    #     bar(1, prefix=f"{system_info()} | Generating velocity field")
+    if feedback:
+        plot.sum_in_3_directions(v[0], "seismic_r", save_as=f"{archive_path}/8_vx.png")
+        plot.sum_in_3_directions(v[1], "seismic_r", save_as=f"{archive_path}/8_vy.png")
+        plot.sum_in_3_directions(v[2], "seismic_r", save_as=f"{archive_path}/8_vz.png")
+        bar(1, prefix=f"{system_info()} | Generating velocity field")
 
-    v = np.empty((3, N, N, N))
-    for i in range(3):
-        v[i] = lorentzian(np.sqrt(X**2 + Y**2 + Z**2), 0, 0.3)
-        plot.sum_in_3_directions(cloud, "seismic_r", save_as=f"{archive_path}/test_velocity.png")
+    ### TO REMOVE (TESTING WITH SIMPLE PARAMETERS)
+    # v = np.empty((3, N, N, N))
+    # for i in range(3):
+    #     v[i] = lorentzian(np.sqrt(X**2 + Y**2 + Z**2), 0, 0.3)
+    #     plot.sum_in_3_directions(cloud, "seismic_r", save_as=f"{archive_path}/test_velocity.png")
+    ###
 
     # Rotate the data
-    cloud_obs, vx_obs, vy_obs, vz_obs = rotate_data(cloud, v)
+    cloud_obs, vx_obs, vy_obs, vz_obs = rotate_data(cloud, v, feedback)
 
     # Compute observations
-    spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=False)
+    spectrum_hypercubes, observations = generate_observations(cloud_obs, vz_obs, verbose=feedback)
+
+    if feedback:
+        save_figures(observations)
 
     save(i, cloud_obs, vx_obs, vy_obs, vz_obs, observations)
+
+    return i
 
 # Generate the dataset --------------------------------------------------------
 
 generate_set(0, feedback=True)
 
-print(f"Verify that the program generated what you want in {archive_path}")
+print(f"\nVerify that the program generated what you want in {archive_path}\n")
 choice = input("Do you want to generate the dataset? (Y/n) ")
 
 if choice.lower() not in ["", "y", "yes"]:
     exit()
 
-pool = Pool(ncpu)
+def callback(x):
+    bar(x, prefix=f"{system_info()} | Generating dataset")
+
+pool = Pool(10)
+bar = progress.Bar(nb_images-1, prefix=f"{system_info()} | Generating dataset")
+bar(0, prefix=f"{system_info()} | Generating dataset")
 for i in range(nb_images-1):
-    pool.apply_async(func=generate_set, args=(i+1,))
+    pool.apply_async(func=generate_set, args=(i+1,False), callback=callback)
 
 pool.close()
 pool.join()
