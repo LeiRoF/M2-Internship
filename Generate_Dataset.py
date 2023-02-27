@@ -10,57 +10,25 @@ import os
 import pyvtk as vtk
 import psutil
 
-# Config ----------------------------------------------------------------------
-
-N = 64 # resolution in pixel
-space_range = [-1, 1] # range of the space in pc
-
-nb_images = 1000 # number of generated image
-# ⚠️ Be carefull, the final dataset will be proportional to 6 * nb_images
-
-CO_n1  = 1000
-N2H_N1 = 1000
-
-CO_v0  = 115.27120e9 # Hz
-N2H_v0 = 93.17371e9 # Hz
-
-CO_A12 = 7.203e-8 # s-1
-CO_B12 = 2.574e-6 # cm+2 . erg-1 . s-1
-CO_B21 = 2.713e-6 # cm+2 . erg-1 . s-1
-
-N2H_A12 = 3.929e-5 # s-1
-N2H_B12 = 1.226e-5 # cm+2 . erg-1 . s-1
-N2H_B21 = 2.832e-5 # cm+2 . erg-1 . s-1
-
-sigma = 1 # cm-1
-
-CO_n1_over_n2 = 3
-N2H_n1_over_n2 = 1
-
-CO_n2 = CO_n1 / CO_n1_over_n2
-N2H_n2 = N2H_N1 / N2H_n1_over_n2
+# Constants -------------------------------------------------------------------
 
 h = 6.62607004e-34 # J.s
-pi = 3.14159265359
+pi = np.pi
 
-CO_v = np.linspace(CO_v0 - 10, CO_v0 + 10, 100)
-N2H_v = np.linspace(N2H_v0 - 10, N2H_v0 + 10, 100)
+# Class definitions -----------------------------------------------------------
 
-
-
-
-# Init ------------------------------------------------------------------------
-
-r, dr = np.linspace(space_range[0], space_range[1], N, endpoint=True, retstep=True)
-X, Y, Z = np.meshgrid(r, r, r)
-
-archive_path = archive.new("Generation", verbose=True)
-
-try:
-    ncpu = cpu_count()
-except:
-    with open(os.getenv("OAR_NODEFILE"), 'r') as f:
-        ncpu = len(f.readlines())
+class Gas:
+    def __init__(self, f=None, profile=None, density_cube=None, v0=None, sigma_v=None, A12=None, B12=None, B21=None, n1=None, n2=None):
+        self.f = f
+        self.profile = profile
+        self.density_cube = density_cube
+        self.v0 = v0
+        self.sigma_v = sigma_v
+        self.A12 = A12
+        self.B12 = B12
+        self.B21 = B21
+        self.n2 = n2
+        self.n1 = n1
 
 # Function definition ---------------------------------------------------------
 
@@ -89,6 +57,58 @@ def system_info():
         + f", RAM: {psutil.virtual_memory().percent}%"\
         + f" ({psutil.virtual_memory().used/1024**3:.2f}GB"\
         + f"/ {psutil.virtual_memory().total/1024**3:.2f}GB)"
+
+# Config ----------------------------------------------------------------------
+
+nb_simu = 1000 # number of generated simulations
+# ⚠️ Be carefull, the final dataset will be proportional to nb_images = 6 * nb_simu
+
+# Global
+N = 64 # resolution in pixel
+r, dr = np.linspace(-1, 1, N, endpoint=True, retstep=True) # range of the space in pc
+
+f, df = np.linspace(0, 1, N, endpoint=True, retstep=True) # range of the frequency in GHz
+
+plummer_radius = 0.75 # pc
+max_density = 1 # particle . cm-3
+plummer_sharpness = 0.1
+
+# CO
+CO = Gas()
+CO.v0 = 115.27120e9 # Hz
+CO.sigma_v = 1 # cm-1
+CO.f = np.linspace(CO.v0 - 10, CO.v0 + 10, 100)
+CO.profile = gaussian(CO.f, CO.v0, CO.sigma_v)
+CO.A12 = 7.203e-8 # s-1
+CO.B12 = 2.574e-6 # cm+2 . erg-1 . s-1
+CO.B21 = 2.713e-6 # cm+2 . erg-1 . s-1
+CO.n1 = 3000
+CO.n2 = 1000
+
+# N2H+
+N2H = Gas()
+N2H.v0 = 93.17371e9 # Hz
+N2H.sigma_v = 1 # Hz
+N2H.f = np.linspace(N2H.v0 - 10, N2H.v0 + 10, 100)
+N2H.profile = gaussian(N2H.f, N2H.v0, N2H.sigma_v)
+N2H.A12 = 3.929e-5 # s-1
+N2H.B12 = 1.226e-5 # cm+2 . erg-1 . s-1
+N2H.B21 = 2.832e-5 # cm+2 . erg-1 . s-1
+N2H.n1 = 1000
+N2H.n2 = 1000
+
+# Init ------------------------------------------------------------------------
+
+r, dr = np.linspace(space_range[0], space_range[1], N, endpoint=True, retstep=True)
+X, Y, Z = np.meshgrid(r, r, r)
+
+archive_path = archive.new("Generation", verbose=True)
+
+try:
+    ncpu = cpu_count()
+except:
+    with open(os.getenv("OAR_NODEFILE"), 'r') as f:
+        ncpu = len(f.readlines())
 
 # ------------------------------------------------------------------------------------------------------------------------------
 
