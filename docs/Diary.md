@@ -300,3 +300,17 @@ Thus, I have to implement an integrator to compute this final intensity.
 ---
 
 - Continuing to follow the Fidle lectures
+
+## 23/02/2023
+
+- Continuing to follow the Fidle lectures
+- Trying a first implementation of an autoencoder model
+  - As expected, I get very bad results (2% of accuracy) using the non physical simulations
+
+## 24/02/2023
+
+- Continuing to follow the Fidle lectures
+- Tried to improve my model, without any relevant improvement
+- Started to implement the more physical simulation using simple radiative transfer. This simulation follow this process:
+
+![](img/2023-02-24-16-58-26.png)
