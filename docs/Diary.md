@@ -314,3 +314,7 @@ Thus, I have to implement an integrator to compute this final intensity.
 - Started to implement the more physical simulation using simple radiative transfer. This simulation follow this process:
 
 ![](img/2023-02-24-16-58-26.png)
+
+## 27/02/2023
+
+- Starting implementation of a simulation based on radiative transfer with 3 types of bodyes in the core (dust, $CO$ and $N_2H^+$)
