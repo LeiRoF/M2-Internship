@@ -318,3 +318,130 @@ Thus, I have to implement an integrator to compute this final intensity.
 ## 27/02/2023
 
 - Starting implementation of a simulation based on radiative transfer with 3 types of bodyes in the core (dust, $CO$ and $N_2H^+$)
+
+## 28/02/2023
+
+- Having trouble with results that are a bit confusing (it looks like optically thin gas even if we have a high absorption coefficient).
+- Let's do it more rigourously, by solving step by step the radiative transfer equation and discretizing it in space.
+
+I have:
+
+$$
+\frac{dI_\nu}{ds} = -\kappa_{\nu}I_\nu + \epsilon_\nu
+$$
+
+I can rewrite it as:
+
+$$
+\frac{dI_\nu}{ds} + \kappa_{\nu}I_\nu = \epsilon_\nu
+$$
+
+I introduction an "integrant factor" $\mu$ defined such as:
+
+$$
+\frac{d\mu}{ds} = \mu \kappa_\nu
+$$
+
+$$
+\implies \mu = e^{\int \kappa_\nu ds}
+$$
+
+So I have
+
+$$
+\mu \frac{dI_\nu}{ds} + \mu \kappa_{\nu}I_\nu = \mu \epsilon_\nu
+$$
+
+By construction, I can write that
+
+$$
+\frac{d\mu I_\nu}{ds} = \frac{d\mu}{ds} I_\nu + \frac{d\mu}{ds} \mu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
+$$
+
+I inject that into the previous equation to simplify it:
+
+$$
+\frac{d\mu I_\nu}{ds} = \mu \epsilon_\nu = \epsilon_\nu e^{\int \kappa_\nu ds}
+$$
+
+$$
+\implies d(\mu I_\nu) = \epsilon_\nu e^{\int \kappa_\nu ds} ds
+$$
+
+$$
+\implies \mu I_\nu = \int \epsilon_\nu e^{\int \kappa_\nu ds'} ds + \mu(0)I_\nu(0)
+$$
+
+with $\mu(0) = e^0= 1$
+
+$$
+\implies I_\nu = e^{-\int \kappa_\nu ds} \int \epsilon_\nu e^{\int \kappa_\nu ds'} ds + e^{-\int \kappa_\nu ds} I_\nu(0)
+$$
+
+$$
+= e^{-\tau_\nu(S)} \int \epsilon_\nu e^{\tau_\nu(s)} ds + e^{-\tau_\nu(S)} I_\nu(0)
+$$
+
+Thus,
+
+$$
+I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds' + e^{-\tau_\nu(S)} I_\nu(0)
+$$
+
+In our case, we have $I_\nu(0) = 0$ so
+
+$$
+I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds'\\
+
+\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S''}^{S'} \kappa_\nu dS''} dS'
+$$
+
+<div align=center>
+<div style="width:400px">
+
+![](img/2023-02-28-15-28-00.png)
+
+</div>
+</div>
+
+We want to descretize this integral in space.
+
+As a reminder, the descretization of an integral is defined such as:
+
+$$
+\int_a^b f(x) dx = \lim_{n\rightarrow+\infty} \sum_{i=1}^nf(x_i^*) \Delta x
+$$
+
+Where
+
+$$
+x_i = a + i\Delta x
+$$
+
+$$
+\Delta x = \frac{b-a}{n} = x_i - x_{i-1}
+$$
+
+$$
+x_i^* \in [x_{i-1}, x_i]
+$$
+
+Here, I chose $x_i^* = x_i$ to have the following case:
+
+<div align=center>
+<div style="width:400px">
+
+![](img/2023-02-28-15-39-30.png)
+
+</div>
+</div>
+
+We can obviously discuss about this choice. A centered one would improve the accuracy of the integral, but as my simulation is pretty well resolved and as this simulation doesn't intend to be physically rigorous, I give more importance to the simplicity of the implementation. The choice $x_i^* = x_i$ is numerically natural to implement as it result in a sum loop that deal with the current index (`for N in n: result += f(N)`) and not the previous one in the case $x_i^* = x_{i-1}$ or the average of both in the centered case $x_i^* = x_{i- \frac 1 2}$.
+
+Thus, I have
+
+$$
+I_\nu(N) = e^{\sum\limits_{N'=1}^N \kappa_\nu \Delta N} \sum_{N'=1}^N \epsilon_\nu e^{\sum\limits_{N''=N'}^N \kappa_\nu \Delta N} \Delta N
+$$
+
+I assume that the image is sufficiently well resolved, so $N$ is sufficiently large to be in the approximation $I_\nu(S) \approx I_\nu(N)$.
