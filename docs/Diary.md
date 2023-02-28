@@ -444,4 +444,4 @@ $$
 I_\nu(N) = e^{\sum\limits_{N'=1}^N \kappa_\nu \Delta N} \sum_{N'=1}^N \epsilon_\nu e^{\sum\limits_{N''=N'}^N \kappa_\nu \Delta N} \Delta N
 $$
 
-I assume that the image is sufficiently well resolved, so $N$ is sufficiently large to be in the approximation $I_\nu(S) \approx I_\nu(N)$.
+I assume that the image is sufficiently well resolved, so $\Delta N$ is sufficiently small compared to the variations to be in the approximation $I_\nu(S) \approx I_\nu(N)$.
