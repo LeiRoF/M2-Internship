@@ -355,7 +355,7 @@ $$
 By construction, I can write that
 
 $$
-\frac{d\mu I_\nu}{ds} = \frac{d\mu}{ds} I_\nu + \frac{d\mu}{ds} \mu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
+\frac{d\mu I_\nu}{ds} = \frac{dI}{ds} \mu + \frac{d\mu}{ds} I_\nu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
 $$
 
 I inject that into the previous equation to simplify it:
