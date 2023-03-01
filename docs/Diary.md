@@ -355,7 +355,7 @@ $$
 By construction, I can write that
 
 $$
-\frac{d\mu I_\nu}{ds} = \frac{dI}{ds} \mu + \frac{d\mu}{ds} I_\nu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
+\frac{d\mu I_\nu}{ds} = \frac{dI_\nu}{ds} \mu + \frac{d\mu}{ds} I_\nu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
 $$
 
 I inject that into the previous equation to simplify it:
@@ -393,7 +393,7 @@ In our case, we have $I_\nu(0) = 0$ so
 $$
 I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds'\\
 
-\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S'}^{S} \kappa_\nu dS''} dS'
+\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S'}^S \kappa_\nu dS''} dS'
 $$
 
 <div align=center>
