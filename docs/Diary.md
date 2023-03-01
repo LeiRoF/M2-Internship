@@ -393,7 +393,7 @@ In our case, we have $I_\nu(0) = 0$ so
 $$
 I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds'\\
 
-\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S''}^{S'} \kappa_\nu dS''} dS'
+\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S'}^{S} \kappa_\nu dS''} dS'
 $$
 
 <div align=center>
