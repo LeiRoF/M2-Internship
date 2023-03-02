@@ -1,4 +1,4 @@
-myst-parser
-sphinx-book-theme
-sphinx-design
-nbsphinx
+myst-parser==0.18.1
+sphinx-book-theme==0.3.3
+sphinx-design==0.3.0
+nbsphinx==0.8.12
