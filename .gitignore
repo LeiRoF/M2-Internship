@@ -12,7 +12,3 @@ __pycache__/
 archives/
 logs/
 dataset/
-
-# Config files
-Generate_Dataset.sh
-Train_Model.sh
