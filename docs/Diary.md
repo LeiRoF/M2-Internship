@@ -328,78 +328,88 @@ I have:
 
 $$
 \frac{dI_\nu}{ds} = -\kappa_{\nu}I_\nu + \epsilon_\nu
-$$
+$$ (02/28.1)
 
 I can rewrite it as:
 
 $$
 \frac{dI_\nu}{ds} + \kappa_{\nu}I_\nu = \epsilon_\nu
-$$
+$$ (02/28.2)
 
 I introduction an "integrant factor" $\mu$ defined such as:
 
 $$
 \frac{d\mu}{ds} = \mu \kappa_\nu
-$$
+$$ (02/28.3)
 
 $$
 \implies \mu = e^{\int \kappa_\nu ds}
-$$
+$$ (02/28.4)
 
 So I have
 
 $$
 \mu \frac{dI_\nu}{ds} + \mu \kappa_{\nu}I_\nu = \mu \epsilon_\nu
-$$
+$$ (02/28.5)
 
 By construction, I can write that
 
 $$
 \frac{d\mu I_\nu}{ds} = \frac{dI_\nu}{ds} \mu + \frac{d\mu}{ds} I_\nu = \frac{dI}{ds} \mu + \mu \kappa_\nu I_\nu
-$$
+$$ (02/28.6)
 
 I inject that into the previous equation to simplify it:
 
 $$
 \frac{d\mu I_\nu}{ds} = \mu \epsilon_\nu = \epsilon_\nu e^{\int \kappa_\nu ds}
-$$
+$$ (02/28.7)
 
 $$
 \implies d(\mu I_\nu) = \epsilon_\nu e^{\int \kappa_\nu ds} ds
-$$
+$$ (02/28.8)
 
 $$
 \implies \mu I_\nu = \int \epsilon_\nu e^{\int \kappa_\nu ds'} ds + \mu(0)I_\nu(0)
-$$
+$$ (02/28.9)
 
 with $\mu(0) = e^0= 1$
 
 $$
 \implies I_\nu = e^{-\int \kappa_\nu ds} \int \epsilon_\nu e^{\int \kappa_\nu ds'} ds + e^{-\int \kappa_\nu ds} I_\nu(0)
-$$
+$$ (02/28.10)
 
 $$
 = e^{-\tau_\nu(S)} \int \epsilon_\nu e^{\tau_\nu(s)} ds + e^{-\tau_\nu(S)} I_\nu(0)
-$$
+$$ (02/28.11)
 
 Thus,
 
 $$
 I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds' + e^{-\tau_\nu(S)} I_\nu(0)
-$$
+$$ (02/28.12)
 
 In our case, we have $I_\nu(0) = 0$ so
 
 $$
-I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds'\\
+I(S) = \int_0^S \epsilon_\nu e^{\tau_\nu(s')-\tau_\nu(S)} ds'
+$$ (02/28.13)
 
-\implies I_\nu(S) = e^{-\int_0^S \kappa_\nu dS'}\int_0^S \epsilon_\nu e^{\int_{S'}^S \kappa_\nu dS''} dS'
 $$
+\implies I_\nu(S) = \int_0^S \epsilon_\nu e^{\int_{0}^{s'} \kappa_\nu ds'' -\int_0^S \kappa_\nu ds''} ds'
+$$ (02/28.14)
+
+$$
+\implies I_\nu(S) = \int_0^S \epsilon_\nu e^{- \int_{s'}^{S} \kappa_\nu ds''}ds'
+$$ (02/28.15)
+
+$$
+\implies I_\nu(S) = \int_0^S \epsilon_\nu e^{- \tau(s'\rightarrow S)}ds'
+$$ (02/28.16)
 
 <div align=center>
 <div style="width:400px">
 
-![](img/2023-02-28-15-28-00.png)
+![](img/2023-03-02-10-27-18.png)
 
 </div>
 </div>
@@ -410,28 +420,28 @@ As a reminder, the descretization of an integral is defined such as:
 
 $$
 \int_a^b f(x) dx = \lim_{n\rightarrow+\infty} \sum_{i=1}^nf(x_i^*) \Delta x
-$$
+$$ (02/28.17)
 
 Where
 
 $$
 x_i = a + i\Delta x
-$$
+$$ (02/28.18)
 
 $$
 \Delta x = \frac{b-a}{n} = x_i - x_{i-1}
-$$
+$$ (02/28.19)
 
 $$
 x_i^* \in [x_{i-1}, x_i]
-$$
+$$ (02/28.20)
 
 Here, I chose $x_i^* = x_i$ to have the following case:
 
 <div align=center>
 <div style="width:400px">
 
-![](img/2023-02-28-15-39-30.png)
+![](img/2023-03-02-10-39-25.png)
 
 </div>
 </div>
@@ -441,7 +451,15 @@ We can obviously discuss about this choice. A centered one would improve the acc
 Thus, I have
 
 $$
-I_\nu(N) = e^{\sum\limits_{N'=1}^N \kappa_\nu \Delta N} \sum_{N'=1}^N \epsilon_\nu e^{\sum\limits_{N''=N'}^N \kappa_\nu \Delta N} \Delta N
-$$
+I_\nu(N) = \sum_{i=1}^N \epsilon_\nu e^{ - \sum\limits_{j=i}^N \kappa_\nu \Delta n} \Delta n
+$$ (02/28.21)
 
-I assume that the image is sufficiently well resolved, so $\Delta N$ is sufficiently small compared to the variations to be in the approximation $I_\nu(S) \approx I_\nu(N)$.
+$$
+\implies I_\nu(N) = \sum_{i=1}^N \left[ \epsilon_\nu \prod_{j=i}^N \left( \frac{1}{e^{\kappa_\nu \Delta n}} \right) \Delta n \right]
+$$ (02/28.22)
+
+I assume that the image is sufficiently well resolved, so $\Delta n$ is sufficiently small compared to the variations to be in the approximation
+
+$$
+I_\nu(S) \approx I_\nu(N)
+$$ (02/28.23)
