@@ -61,6 +61,13 @@ html_theme_options = {
     "path_to_docs": "docs",
     "use_repository_button": True,
     "use_edit_page_button": True,
+    "use_source_button": True,
+    "logo": {
+        "image_dark": "img/logo.png",
+        "text": "Unveiling 3D structure of pre stellar cores",  # Uncomment to try text with logo
+    },
+    "icon_links": [
+    ]
 }
 
 html_logo = "img/logo.png"

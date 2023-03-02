@@ -451,11 +451,11 @@ We can obviously discuss about this choice. A centered one would improve the acc
 Thus, I have
 
 $$
-I_\nu(N) = \sum_{i=1}^N \epsilon_\nu e^{ - \sum\limits_{j=i}^N \kappa_\nu \Delta n} \Delta n
+I_\nu(N) = \sum_{i=1}^N \epsilon_{\nu,i} e^{ - \sum\limits_{j=i}^N \kappa_{\nu,j} \Delta n} \Delta n
 $$ (02/28.21)
 
 $$
-\implies I_\nu(N) = \sum_{i=1}^N \left[ \epsilon_\nu \prod_{j=i}^N \left( \frac{1}{e^{\kappa_\nu \Delta n}} \right) \Delta n \right]
+\implies I_\nu(N) = \sum_{i=1}^N \left[ \epsilon_{\nu,i} \prod_{j=i}^N \left({e^{-\kappa_{\nu,j} \Delta n}} \right) \Delta n \right]
 $$ (02/28.22)
 
 I assume that the image is sufficiently well resolved, so $\Delta n$ is sufficiently small compared to the variations to be in the approximation
