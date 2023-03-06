@@ -463,3 +463,8 @@ I assume that the image is sufficiently well resolved, so $\Delta n$ is sufficie
 $$
 I_\nu(S) \approx I_\nu(N)
 $$ (02/28.23)
+
+## 29/03/2023 to 03/03/2023
+
+- Trying to find out why the generated images doesn't match our expectations ($\tau$ too small even with ridiculously huge cloud density)
+- Trying to run a LOC simulation but encountering bugs in the code that I try to fix ([see here](https://github.com/mjuvela/LOC/pulls?q=is%3Apr+author%3Aleirof+) my Pull Requests on the LOC repository)
