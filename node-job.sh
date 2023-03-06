@@ -15,6 +15,7 @@ NSLOTS=$(cat $OAR_NODEFILE | wc -l)
 echo $NSLOTS
 
 source ~/M2-Prestel-state-from-obs-ML/venv/bin/activate
+ls -s /scratch-local/vforiel ./M2-Prestel-state-from-obs-ML/scratch-local
 ~/M2-Prestel-state-from-obs-ML/venv/bin/python ~/M2-Prestel-state-from-obs-ML/venv/bin/jupyter-lab --no-browser --port 1235 --ip='*' --NotebookApp.token='' --NotebookApp.password=''
 
 exit 0
