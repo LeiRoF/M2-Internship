@@ -925,8 +925,6 @@ def InitCL(GPU=0, platforms=[], idevice=0, sub=0, verbose=True):
                 # try to make subdevices with sub threads, return the first one
                 dpp       =  cl.device_partition_property
                 device    =  [device[0].create_sub_devices( [dpp.EQUALLY, sub] )[0],]
-
-            print("\n\n------\n",device,"\n------\n\n")
             context   =  cl.Context(device)
             queue     =  cl.CommandQueue(context)
             break
