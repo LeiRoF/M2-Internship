@@ -112,9 +112,8 @@ def load_data() -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
 
 
-"""
-This part only consist to check the data consistency, normalize it and split the dataset.
-"""
+# This part only consist to check the data consistency,
+# normalize it and split the dataset.
 
 # Check data consistency -----------------------------------------------------
 
