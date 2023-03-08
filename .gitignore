@@ -12,3 +12,4 @@ __pycache__/
 archives/
 logs/
 dataset/
+.vscode/
