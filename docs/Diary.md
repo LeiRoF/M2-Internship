@@ -464,7 +464,16 @@ $$
 I_\nu(S) \approx I_\nu(N)
 $$ (02/28.23)
 
-## 29/03/2023 to 03/03/2023
+## 29/03/2023 to 07/03/2023
 
 - Trying to find out why the generated images doesn't match our expectations ($\tau$ too small even with ridiculously huge cloud density)
 - Trying to run a LOC simulation but encountering bugs in the code that I try to fix ([see here](https://github.com/mjuvela/LOC/pulls?q=is%3Apr+author%3Aleirof+) my Pull Requests on the LOC repository)
+
+## 08/03/2023 to 09/03/2023
+
+- Succeded to run a LOC simulation, which give me expected results
+- Stil trying to find out why the generated images doesn't match our expectations...
+
+## 10/03/2023
+
+- Giving up with the home made radiative transfer code. I will use the LOC code instead.
