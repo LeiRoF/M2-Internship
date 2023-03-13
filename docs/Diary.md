@@ -477,3 +477,7 @@ $$ (02/28.23)
 ## 10/03/2023
 
 - Giving up with the home made radiative transfer code. I will use the LOC code instead.
+
+## 13/03/2023
+
+- I wrote a script to generate a dataset but during the test I noticed that the spectrum given by LOC is expressed in km/s and admit negative values, which gives me weird results. I'm investigating on this.
