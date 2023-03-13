@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from scipy.signal import argrelextrema
 
 # Configuration ---------------------------------------------------------------
 
@@ -20,19 +21,31 @@ R = np.sqrt(X**2 + Y**2 + Z**2)
 def plummer(r, R=0.75, p=2):
     return 3/(4*np.pi*R**3)*(1 + r**p / R**p)**(-5/2)
 
-# Model cloud description -----------------------------------------------------
+# Gas cloud description -----------------------------------------------------
 
-def write_LOC_cloud(N, H, fractional_abundance):
+def write_LOC_cloud(N, density_cube, fractional_abundance):
     header = np.array([N, N, N,], dtype=np.int32)
     model = np.zeros((N, N, N, 7), dtype=np.float32)
 
-    model[:,:,:,0] = H.density_cube.value # cloud density
+    model[:,:,:,0] = density_cube # cloud density
     model[:,:,:,1] = T # kinetic temperature
     model[:,:,:,2] = 0 # microturbulence
     model[:,:,:,3] = 0 # macroscopic velocity (x)
     model[:,:,:,4] = 0 # macroscopic velocity (y)
     model[:,:,:,5] = 0 # macroscopic velocity (z)
     model[:,:,:,6] = fractional_abundance # fractional abundance
+
+    with open(f"data/LOC/input_cloud.bin", "wb") as file:
+        header.tofile(file)
+        model.tofile(file)
+
+# Dust cloud description -----------------------------------------------------
+
+def write_SOC_cloud(N, density_cube):
+    header = np.array([N, N, N, 1, N**3, N**3], dtype=np.int32)
+    model = np.zeros((N, N, N, 7), dtype=np.float32)
+
+    model[:,:,:,0] = density_cube # cloud density
 
     with open(f"data/LOC/input_cloud.bin", "wb") as file:
         header.tofile(file)
@@ -148,13 +161,41 @@ for n_H in np.linspace(1e3, 1e6,10, endpoint=True): # Density from 10^3 to 10^6 
             write_LOC_config("CO", N)
             run_LOC()
 
-            # TODO: Get resulting images
+            v, spectra = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
 
-            # N2H+ simulation
-            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            write_LOC_config("N2H+", N)
-            run_LOC()
+            # Getting average spectra
+            avg_spectra = np.sum(spectra, axis=(0,1))
 
-            # TODO: Get resulting images
+            plt.plot(v, avg_spectra)
+            plt.xlabel("Velocity [km/s]")
+            plt.ylabel("Intensity [K km/s]")
+            plt.title("Average spectra")
+            plt.savefig("data/LOC/output/avg_spectra.png")
+
+            maximums = argrelextrema(avg_spectra, np.greater)
+            print("Maximums found at: ", v[maximums], "Hz")
+
+            observation = spectra[:,:,N//2]
+            print("Observation 1 made at: ", v[N//2], "Hz")
+            plt.imshow(observation)
+            plt.title(f"Observation at {v[N//2]} Hz")
+            plt.savefig(f"data/LOC/output/observation_1_at_{v[N//2]}Hz.png")
+
+            for i, max in enumerate(maximums[0]):
+                print(f"Observation {i+2} made at: ", v[max], "Hz")
+                plt.imshow(spectra[:,:,max])
+                plt.title(f"Observation at {v[max]} Hz")
+                plt.savefig(f"data/LOC/output/observation_{i+2}_at_{v[max]}Hz.png")
+
+            break
+        break
+    break
+
+            # # N2H+ simulation
+            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            # write_LOC_config("N2H+", N)
+            # run_LOC()
+
+            # # TODO: Get resulting images
             
-            # TODO: Run SOC for dust simulation
+            # # TODO: Run SOC for dust simulation
