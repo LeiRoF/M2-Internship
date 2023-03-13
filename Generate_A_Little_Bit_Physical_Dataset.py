@@ -124,7 +124,7 @@ def write_LOC_config(N, molecule):
     grid           1.0                            #  map pixel size [arcsec]
     spectra        1 0  2 1                       #  spectra written for transitions == upper lower (pair of integers)
     transitions    1 0  2 1                       #  Tex saved for transitions (upper and lower levels of each transition)
-    bandwidth      6.0                            #  bandwidth in the calculations [km/s]
+    bandwidth      1.0                            #  bandwidth in the calculations [km/s]
     channels       128                            #  number of velocity channels
     prefix         data/LOC/output/res            #  prefix for output files
     load           load_level_pop                 #  load level populations
@@ -142,10 +142,22 @@ def run_LOC():
 
     os.system("python src/LOC/LOC_OT.py data/LOC/input_config.ini")
 
-    os.rename("CO.dump", "data/LOC/output/CO.dump")
-    os.rename("N2H+.dump", "data/LOC/output/N2H+.dump")
-    os.rename("gauss_py.dat", "data/LOC/output/gauss_py")
-    os.rename("save_level_pop", "data/LOC/output/save_level_pop")
+    try:
+        os.rename("CO.dump", "data/LOC/output/CO.dump")
+    except:
+        pass
+    try:
+        os.rename("N2H+.dump", "data/LOC/output/N2H+.dump")
+    except:
+        pass
+    try:
+        os.rename("gauss_py.dat", "data/LOC/output/gauss_py")
+    except:
+        pass
+    try:
+        os.rename("save_level_pop", "data/LOC/output/save_level_pop")
+    except:
+        pass
 
 # Generated dataset -----------------------------------------------------------
 
@@ -156,9 +168,10 @@ for n_H in np.linspace(1e3, 1e6,10, endpoint=True): # Density from 10^3 to 10^6 
             profile = plummer(R, r, p)
             density_cube = n_H * profile / np.max(profile)
 
-            # CO simulation
+            # CO simulation ---------------------------------------------------
+
             write_LOC_cloud(N, density_cube, CO_fractional_abundance)
-            write_LOC_config("CO", N)
+            write_LOC_config(N, "CO")
             run_LOC()
 
             v, spectra = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
@@ -166,35 +179,108 @@ for n_H in np.linspace(1e3, 1e6,10, endpoint=True): # Density from 10^3 to 10^6 
             # Getting average spectra
             avg_spectra = np.sum(spectra, axis=(0,1))
 
+            plt.figure()
             plt.plot(v, avg_spectra)
             plt.xlabel("Velocity [km/s]")
             plt.ylabel("Intensity [K km/s]")
             plt.title("Average spectra")
-            plt.savefig("data/LOC/output/avg_spectra.png")
+            plt.savefig("data/LOC/output/CO_avg_spectra.png")
 
             maximums = argrelextrema(avg_spectra, np.greater)
             print("Maximums found at: ", v[maximums], "Hz")
 
-            observation = spectra[:,:,N//2]
-            print("Observation 1 made at: ", v[N//2], "Hz")
+            mid = len(v)//2
+            observation = spectra[:,:,mid]
+            print("Observation 1 of CO, made at: ", v[mid], "Hz")
+            plt.figure()
             plt.imshow(observation)
-            plt.title(f"Observation at {v[N//2]} Hz")
-            plt.savefig(f"data/LOC/output/observation_1_at_{v[N//2]}Hz.png")
+            plt.colorbar()
+            plt.title(f"Observation at {v[mid]} Hz")
+            plt.savefig(f"data/LOC/output/CO_observation_1_at_{v[mid]}Hz.png")
 
             for i, max in enumerate(maximums[0]):
-                print(f"Observation {i+2} made at: ", v[max], "Hz")
+                print(f"Observation {i+2} of CO, made at: ", v[max], "Hz")
+                plt.figure()
                 plt.imshow(spectra[:,:,max])
+                plt.colorbar()
                 plt.title(f"Observation at {v[max]} Hz")
-                plt.savefig(f"data/LOC/output/observation_{i+2}_at_{v[max]}Hz.png")
+                plt.savefig(f"data/LOC/output/CO_observation_{i+2}_at_{v[max]}Hz.png")
+
+            mosaic = 10
+            fig, axs = plt.subplots(mosaic, mosaic, figsize=(30,30))
+            for i in range(mosaic):
+                for j in range(mosaic):
+                    # Plotting spectra for 10 equally distant pixels in each row and column
+                    Nx, Ny, Nf = spectra.shape
+                    axs[i,j].plot(v, spectra[Nx//mosaic*i, Ny//mosaic*j, :])
+            
+            fig.savefig("data/LOC/output/CO_spectra_mosaic.png")
+
+            plt.figure()
+            plt.imshow(np.sum(spectra, axis=-1))
+            plt.colorbar()
+            plt.title("Line area")
+            plt.savefig("data/LOC/output/CO_line_area.png")
+            
+            # N2H+ simulation -------------------------------------------------
+
+            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            write_LOC_config(N, "N2H+")
+            run_LOC()
+
+            v, spectra = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
+
+            # Getting average spectra
+            avg_spectra = np.sum(spectra, axis=(0,1))
+
+            plt.figure()
+            plt.plot(v, avg_spectra)
+            plt.xlabel("Velocity [km/s]")
+            plt.ylabel("Intensity [K km/s]")
+            plt.title("Average spectra")
+            plt.savefig("data/LOC/output/N2H+_avg_spectra.png")
+
+            maximums = argrelextrema(avg_spectra, np.greater)
+            print("Maximums found at: ", v[maximums], "Hz")
+
+            mid = len(v)//2
+            observation = spectra[:,:,mid]
+            print("Observation 1 of N2H+, made at: ", v[mid], "Hz")
+            plt.figure()
+            plt.imshow(observation)
+            plt.colorbar()
+            plt.title(f"Observation at {v[mid]} Hz")
+            plt.savefig(f"data/LOC/output/N2H+_observation_1_at_{v[mid]}Hz.png")
+
+            for i, max in enumerate(maximums[0]):
+                print(f"Observation {i+2} of N2H+, made at: ", v[max], "Hz")
+                plt.figure()
+                plt.imshow(spectra[:,:,max])
+                plt.colorbar()
+                plt.title(f"Observation at {v[max]} Hz")
+                plt.savefig(f"data/LOC/output/N2H+_observation_{i+2}_at_{v[max]}Hz.png")
+
+            mosaic = 10
+            fig, axs = plt.subplots(mosaic, mosaic, figsize=(30,30))
+            for i in range(mosaic):
+                for j in range(mosaic):
+                    # Plotting spectra for 10 equally distant pixels in each row and column
+                    Nx, Ny, Nf = spectra.shape
+                    axs[i,j].plot(v, spectra[Nx//mosaic*i, Ny//mosaic*j, :])
+            
+            fig.savefig("data/LOC/output/N2H+_spectra_mosaic.png")
+
+            plt.figure()
+            plt.imshow(np.sum(spectra, axis=-1))
+            plt.colorbar()
+            plt.title("Line area")
+            plt.savefig("data/LOC/output/N2H+_line_area.png")
 
             break
         break
     break
 
-            # # N2H+ simulation
-            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            # write_LOC_config("N2H+", N)
-            # run_LOC()
+            
 
             # # TODO: Get resulting images
             
