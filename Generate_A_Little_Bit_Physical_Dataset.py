@@ -219,13 +219,9 @@ def generate_graphs(v, sepctra, molecule):
 
 test = False
 
-# n_List = np.linspace(1e3,  1e6, 10, endpoint=True) # Density from 10^3 to 10^6 hydrogen atom per cm^-3
-# r_List = np.linspace(0.02, 1.0, 10, endpoint=True) # Core radius from 0.02 to 1 parsec
-# p_List = np.linspace(1.5,  2.5, 10, endpoint=True) # Sharpness of the plummer profile from 1.5 to 2.5
-
-n_List = np.linspace(1e6,  1e6, 1, endpoint=True) # Density from 10^3 to 10^6 hydrogen atom per cm^-3
+n_List = np.linspace(1e3,  1e6, 2, endpoint=True) # Density from 10^3 to 10^6 hydrogen atom per cm^-3
 r_List = np.linspace(0.02, 1.0, 10, endpoint=True) # Core radius from 0.02 to 1 parsec
-p_List = np.linspace(2.0,  2.0, 1, endpoint=True) # Sharpness of the plummer profile from 1.5 to 2.5
+p_List = np.linspace(1.5,  2.5, 2, endpoint=True) # Sharpness of the plummer profile from 1.5 to 2.5
 
 CO_avg_spectrum_datacube = np.zeros((10, 10, 10, channels))
 N2H_avg_spectrum_datacube = np.zeros((10, 10, 10, channels))
@@ -236,7 +232,7 @@ for i, n_H in enumerate(n_List):
     for j, r in enumerate(r_List): 
         for k, p in enumerate(p_List): 
 
-            bar(i*len(n_List)*len(r_List) + j*len(r_List) + k)
+            bar(i*len(r_List)*len(p_List) + j*len(p_List) + k)
 
             if test:
                 n_H = 1e3
@@ -289,12 +285,12 @@ for i, n_H in enumerate(n_List):
 bar(len(n_List) * len(r_List) * len(p_List))
 
 np.savez_compressed("data/spectra_datacubes",
-                    CO=CO_avg_spectrum_datacube,
-                    N2H=N2H_avg_spectrum_datacube,
-                    v=v,
-                    n_H = np.linspace(1e3, 1e6, 10, endpoint=True),
-                    r = np.linspace(0.02, 1.0, 10, endpoint=True),
-                    p = np.linspace(1.5, 2.5, 10, endpoint=True),
+                    CO = CO_avg_spectrum_datacube,
+                    N2H = N2H_avg_spectrum_datacube,
+                    v = v,
+                    n_H = n_List,
+                    r = r_List,
+                    p = p_List,
                 )
 
 
