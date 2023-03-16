@@ -1,9 +1,9 @@
 #!/bin/bash
-#OAR -n "Training Model"
+#OAR -n "Dataset Generation"
 #OAR -p gpu>0
-#OAR -l /gpu=1,walltime=2:00:00
-#OAR -O logs/jupyter-log.txt
-#OAR -E logs/jupyter-err.txt
+#OAR -l /gpu=1,walltime=20:00:00
+#OAR -O logs/generation.log
+#OAR -E logs/generation-error.log
 #OAR -t besteffort
 
 export http_proxy=http://11.0.0.254:3142/
