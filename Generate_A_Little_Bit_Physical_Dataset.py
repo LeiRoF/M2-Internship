@@ -172,35 +172,35 @@ def write_SOC_cloud(N:int, density_cube:ndarray[float]):
 def write_SOC_config(N:int):
 
     config = f"""
-        gridlength      0.01                     # root grid cells have a size of 0.01 pc each
-        cloud           data/SOC/input_cloud.bin # density field (reference to a file)
-        mapping         {N} {N} 1.0              # output 64x64 pixels, pixel size == root-grid cell size
-        density         1.0e4                    # scale values read from tmp.cloud
-        seed           -1.0                      # random seed for random numbers
-        directions      0.0  0.0                 # observer in direction (theta,phi)
-        optical         tmp.dust                 # dust optical parameters
-        dsc             tmp.dsc  2500            # dust scattering function
-        bgpackets       999999                   # photon packages simulated from the background
-        background      bg_intensity.bin         # background intensity at the
-        iterations      1                        # one iteration is enough
-        prefix          data/LOC/output/res      # prefix for output files
-        absorbed        absorbed.save            # save absorptions to a file
-        emitted         emitted.save             # save dust emission to a file
-        noabsorbed                               # actually, we integrate absorptions on the fly and skip the *file*
-        temperature     tmp.T                    # save dust temperatures
-        device          g                        # run calculations on a GPU
-        CLT                                      # temperature caclulations done on the device
-        CLE                                      # emission calculations done on the device
+        gridlength      0.01                      # root grid cells have a size of 0.01 pc each
+        cloud           data/SOC/input_cloud.bin  # density field (reference to a file)
+        mapping         {N} {N} 1.0               # output 64x64 pixels, pixel size == root-grid cell size
+        density         1.0e4                     # scale values read from tmp.cloud
+        seed           -1.0                       # random seed for random numbers
+        directions      0.0  0.0                  # observer in direction (theta,phi)
+        optical         data/SOC/aSilx.dust       # dust optical parameters
+        dsc             data/SOC/aSilx.dsc  2500  # dust scattering function
+        bgpackets       999999                    # photon packages simulated from the background
+        background      data/SOC/bg_intensity.bin # background intensity at the
+        iterations      1                         # one iteration is enough
+        prefix          data/LOC/output/res       # prefix for output files
+        absorbed        absorbed.save             # save absorptions to a file
+        emitted         emitted.save              # save dust emission to a file
+        noabsorbed                                # actually, we integrate absorptions on the fly and skip the *file*
+        temperature     temperature.save          # save dust temperatures
+        device          g                         # run calculations on a GPU
+        CLT                                       # temperature caclulations done on the device
+        CLE                                       # emission calculations done on the device
         """.replace("\n        ","\n")
 
-    with open("data/LOC/input_config.ini", "w") as file:
+    with open("data/SOC/input_config.ini", "w") as file:
         file.write(config)
 
 # Run SOC ---------------------------------------------------------------------
 
 def run_SOC():
 
-    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=True)
+    os.system("python src/SOC/ASOC.py data/SOC/input_config.ini")
 
     def move_file(src, dst):
         try:
@@ -231,38 +231,44 @@ for i, n_H in enumerate(n_List):
             profile = plummer(R, r, p)
             density_cube = n_H * profile / np.max(profile)
 
-            # CO simulation ---------------------------------------------------
+            # # CO simulation ---------------------------------------------------
 
-            write_LOC_cloud(N, density_cube, CO_fractional_abundance)
-            write_LOC_config(N, "CO", channels)
-            run_LOC()
+            # write_LOC_cloud(N, density_cube, CO_fractional_abundance)
+            # write_LOC_config(N, "CO", channels)
+            # run_LOC()
 
-            CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
+            # CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
             
-            # N2H+ simulation -------------------------------------------------
+            # # N2H+ simulation -------------------------------------------------
 
-            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            write_LOC_config(N, "N2H+", channels)
-            run_LOC()
+            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            # write_LOC_config(N, "N2H+", channels)
+            # run_LOC()
 
-            N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
+            # N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
 
             # Dust simulation -------------------------------------------------
             
-            # TODO: Run SOC for dust simulation
+            write_SOC_cloud(N, density_cube)
+            write_SOC_config(N)
+            run_SOC()
 
             # Save data -------------------------------------------------------
 
             np.savez_compressed(f"data/dataset/n={n_H:.2f}_r={r:.2f}_p={p:.2f}.npz",
-                CO_cube = CO_cube,
-                N2H_cube = N2H_cube,
-                CO_v = CO_v,
-                N2H_v = N2H_v,
+                # CO_cube = CO_cube,
+                # N2H_cube = N2H_cube,
+                # CO_v = CO_v,
+                # N2H_v = N2H_v,
                 density_cube = density_cube,
                 n_H = n_H,
                 r = r,
                 p = p,
             )
+
+            break
+        break
+    break
 
 # End progress bar
 bar(len(n_List) * len(r_List) * len(p_List))
