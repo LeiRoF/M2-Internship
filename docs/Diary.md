@@ -466,18 +466,40 @@ $$ (02/28.23)
 
 ## 29/03/2023 to 07/03/2023
 
-- Trying to find out why the generated images doesn't match our expectations ($\tau$ too small even with ridiculously huge cloud density)
-- Trying to run a LOC simulation but encountering bugs in the code that I try to fix ([see here](https://github.com/mjuvela/LOC/pulls?q=is%3Apr+author%3Aleirof+) my Pull Requests on the LOC repository)
+I'm trying to find out why the generated images doesn't match our expectations ($\tau$ too small even with ridiculously huge cloud density)
+
+I'm trying to run a LOC simulation but encountering bugs in the code that I try to fix ([see here](https://github.com/mjuvela/LOC/pulls?q=is%3Apr+author%3Aleirof+) my Pull Requests on the LOC repository)
 
 ## 08/03/2023 to 09/03/2023
 
-- Succeded to run a LOC simulation, which give me expected results
-- Stil trying to find out why the generated images doesn't match our expectations...
+I succeded to run a LOC simulation, which give me expected results!
+
+But I'm still trying to find out why the generated images doesn't match our expectations...
 
 ## 10/03/2023
 
-- Giving up with the home made radiative transfer code. I will use the LOC code instead.
+Giving up with the home made radiative transfer code. I will use the LOC code instead.
 
 ## 13/03/2023
 
-- I wrote a script to generate a dataset but during the test I noticed that the spectrum given by LOC is expressed in km/s and admit negative values, which gives me weird results. I'm investigating on this.
+I wrote a script to generate a dataset but during the test I noticed that the spectrum given by LOC include negative values. I'm investigating on this.
+
+## 14/03/2023
+
+I solved issues with my simulations but I still have negative values... 
+
+I will neglect these negative values as there order of magnitude is very small compared to the positive ones.
+
+## 15/03/2023
+
+I generated differents spectra for different core radius and it gives me what I expect:
+
+![](img/2023-03-16-16-28-23.png)
+
+This show that the intensity rise quickly to a maximum due to the fact that we are in a thick optical medium. The light emitted for internal layers are then quickly absorbed by thenearest ones.
+
+According to the time it took me to generate these data, I can estimate the time for a thousand of data cubes : almost 13 hours (only for the LOC part).
+
+## 16/03/2023
+
+I started to work on SOC to generate the dust map.
