@@ -8,3 +8,4 @@ pyvtk
 multiprocess
 astropy
 bokeh
+pandas
