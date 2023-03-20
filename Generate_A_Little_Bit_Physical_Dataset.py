@@ -17,7 +17,7 @@ from LRFutils import progress
 # Configuration ---------------------------------------------------------------
 
 N = 64 # resolution in pixel
-r, dr = np.linspace(-1, 1, N, endpoint=True, retstep=True) # Space range (1D but serve as base for 3D)
+space_range, space_step = np.linspace(-1, 1, N, endpoint=True, retstep=True) # Space range (1D but serve as base for 3D)
 
 channels = 128 # number of velocity channels
 
@@ -33,7 +33,7 @@ p_List = np.linspace(1.5,  2.5, 10, endpoint=True) # Sharpness of the plummer pr
 
 # Environment -----------------------------------------------------------------
 
-X, Y, Z = np.meshgrid(r, r, r)
+X, Y, Z = np.meshgrid(space_range, space_range, space_range)
 R = np.sqrt(X**2 + Y**2 + Z**2)
 
 # Global functions ------------------------------------------------------------
@@ -159,13 +159,10 @@ def run_LOC():
 def write_SOC_cloud(N:int, density_cube:ndarray[float]):
 
     header = np.array([N, N, N, 1, N**3, N**3], dtype=np.int32)
-    model = np.zeros((N, N, N, 7), dtype=np.float32)
-
-    model[:,:,:,0] = density_cube # cloud density
 
     with open(f"data/SOC/input_cloud.bin", "wb") as file:
         header.tofile(file)
-        model.tofile(file)
+        density_cube.astype(np.float32).tofile(file)
 
 # Initialisation file ---------------------------------------------------------
 
@@ -200,15 +197,56 @@ def write_SOC_config(N:int):
 
 def run_SOC():
 
-    os.system("python src/SOC/ASOC.py data/SOC/input_config.ini")
+    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=True)
 
     def move_file(src, dst):
+        if os.path.isdir(dst):
+            dst = os.path.join(dst, os.path.basename(src))
         try:
             os.rename(src, dst)
         except:
             pass
 
-    # TODO: move output files
+    move_file("absorbed.save", "data/SOC/output/") 
+    move_file("emitted.save", "data/SOC/output/")   
+    move_file("map_dir_00.bin", "data/SOC/output/")
+    move_file("temperature.save", "data/SOC/output/")
+    move_file("packet.info", "data/SOC/output/")
+
+# SOC output reading functions ------------------------------------------------
+
+def read_SOC_output():
+    freq     = loadtxt('data/SOC/freq.dat')            # read the frequencies
+    nfreq    = len(freq)                      # ... number of frequencies
+
+    with open('data/SOC/output/map_dir_00.bin', 'rb') as fp:  # open the surface-brightness file
+        dims     = fromfile(fp, int32, 2)                     # read map dimensions in pixels
+        S        = fromfile(fp, float32).reshape(nfreq, dims[0], dims[1]) # read intensities
+        S       *= 1.0e-5                                     # convert surface brightness from Jy/sr to MJy/sr
+
+    return freq, S
+
+# Plot ------------------------------------------------------------------------
+
+def plot_SOC():
+    freq, S = read_SOC_output()
+    figure(1, figsize=(8,2.8))
+    ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
+    ax = subplot(121)
+    imshow(S[ifreq,:,:])                      # plot the 250um surface brightness map
+    title("Surface brightness")
+    colorbar()
+    text(1.34, 0.5, r'$S_{\nu} \/ \/ \rm (MJy \/ sr^{-1})$', transform=ax.transAxes,
+    va='center', rotation=90)
+    fp       = open('data/SOC/output/temperature.save', 'rb')            # open the file with dust temperatures
+    NX, NY, NZ, LEVELS, CELLS, CELLS_LEVEL_1 = fromfile(fp, int32, 6)
+    T        = fromfile(fp, float32).reshape(NZ, NY, NX) # T is simply a 64x64x64 cell cube
+    ax = subplot(122)
+    imshow(T[NZ//2, :, :])                    # plot cross section through the model centre
+    title("Dust temperature")
+    colorbar()
+    text(1.34, 0.5, r'$T_{\rm dust} \/ \/ \rm (K)$', transform=ax.transAxes, va='center', rotation=90)
+    plt.savefig("data/SOC/output/plot.png", dpi=300)
 
 
 
@@ -231,21 +269,21 @@ for i, n_H in enumerate(n_List):
             profile = plummer(R, r, p)
             density_cube = n_H * profile / np.max(profile)
 
-            # # CO simulation ---------------------------------------------------
+            # CO simulation ---------------------------------------------------
 
-            # write_LOC_cloud(N, density_cube, CO_fractional_abundance)
-            # write_LOC_config(N, "CO", channels)
-            # run_LOC()
+            write_LOC_cloud(N, density_cube, CO_fractional_abundance)
+            write_LOC_config(N, "CO", channels)
+            run_LOC()
 
-            # CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
+            CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
             
-            # # N2H+ simulation -------------------------------------------------
+            # N2H+ simulation -------------------------------------------------
 
-            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            # write_LOC_config(N, "N2H+", channels)
-            # run_LOC()
+            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            write_LOC_config(N, "N2H+", channels)
+            run_LOC()
 
-            # N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
+            N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
 
             # Dust simulation -------------------------------------------------
             
@@ -253,22 +291,33 @@ for i, n_H in enumerate(n_List):
             write_SOC_config(N)
             run_SOC()
 
+            freq, S = read_SOC_output()
+            ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
+            dust_image = S[ifreq,:,:]
+
             # Save data -------------------------------------------------------
 
-            np.savez_compressed(f"data/dataset/n={n_H:.2f}_r={r:.2f}_p={p:.2f}.npz",
-                # CO_cube = CO_cube,
-                # N2H_cube = N2H_cube,
-                # CO_v = CO_v,
-                # N2H_v = N2H_v,
+            to_msun = 0.0243928591
+
+            hydrogen_mass = 1.0079 # atomic mass
+            mu = 2.8
+            nH = np.sum(density_cube, axis=(0,1,2))
+            volume = (space_range[-1] - space_range[0])**3
+
+            mass = mu * hydrogen_mass * nH / volume * to_msun
+
+            np.savez_compressed(f"data/dataset/n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz",
+                CO_cube = CO_cube,
+                N2H_cube = N2H_cube,
+                CO_v = CO_v,
+                N2H_v = N2H_v,
+                dust_image = dust_image,
                 density_cube = density_cube,
                 n_H = n_H,
                 r = r,
                 p = p,
+                mass = mass
             )
-
-            break
-        break
-    break
 
 # End progress bar
 bar(len(n_List) * len(r_List) * len(p_List))
