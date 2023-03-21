@@ -503,3 +503,25 @@ According to the time it took me to generate these data, I can estimate the time
 ## 16/03/2023
 
 I started to work on SOC to generate the dust map.
+
+## 17/03/2023
+
+I succeeded in generating a dust map and I started to generate a clean dataset (hinking the structure of the data to be simple to manipulate afterward).
+
+## 20/03/2023
+
+Started to design a simple neural network using only the dust map and giving only the mass in output. Having some trouble with the data structure and my network doesn't converge. I noticed also that the computed mass is not correct but as long as there is a relation between the data and the mass (which is the case), and considering the time needed to generate the dataset, it is not really a big deal for now, I will fix that later.
+
+## 21/03/2023
+
+I simplified a lot the model, but I was still not able to make it converge... but I understood why : the dataset have a huge problem, here is the plots of what is supposed to be 25 random dust maps in the dataset :
+
+![](img/2023-03-21-14-37-29.png)
+
+It's obviously not good, so I'm trying to find out where I made an error...
+
+I will try to fix the problems in the dataset. While waiting 13 hours to generate a new dataset, I will try to make the network converge using the CO integrated map (line area) instead of the dust map, which seems more consistent
+
+![](img/2023-03-21-15-11-48.png)
+
+It still doesn't converge and I don't know why... I don't think the good dataset will fix this issue, so I will try to simplify (again) the problem to have a basic perceptron, and then increase the complexity of the network a little bit at a time (not the most efficient way to design a network but in this way, I will maybe find out what I'm doing wrong).
