@@ -3,76 +3,89 @@ from manim import *
 class RTCalc(Scene):
     def construct(self):
 
-        title = Tex(r"We start from the Beer-Lambert law")
-        eq = MathTex(r"\frac{dI_\nu}{ds} = -\kappa_{\nu}I_\nu + \epsilon_\nu")
-        VGroup(title, eq).arrange(DOWN)
+        # Beer Lambert law ----------------------------------------------------
 
-        self.play(
-            FadeIn(title, shift=UP)
-        )
-        self.play(
-            Write(eq)
-        )
+        # Definition
+
+        BeerLambert_title = Tex(r"We start from the Beer-Lambert law")
+        BeerLambert_eq = MathTex(r"\frac{dI_\nu}{ds} = -\kappa_{\nu}I_\nu + \epsilon_\nu")
+        VGroup(BeerLambert_title, BeerLambert_eq).arrange(DOWN)
+
+        self.play( FadeIn(BeerLambert_title, shift=UP) )
+        self.play( Write(BeerLambert_eq) )
         self.wait()
 
-        new_title = title.copy()
-        new_eq = eq.copy()
-        title2 = Tex(r"We can rewrite it as")
-        eq2 = MathTex(r"\frac{dI_\nu}{ds} + \kappa_{\nu}I_\nu = \epsilon_\nu")
-        VGroup(new_title, new_eq, title2, eq2).arrange(DOWN)
+        # Rewrite
+
+        BeerLambert_title_moved = title.copy()
+        BeerLambert_eq_moved = eq.copy()
+        BeerLambert_rewrite_title = Tex(r"We can rewrite it as")
+        BeerLambert_rewrite_eq = MathTex(r"\frac{dI_\nu}{ds} + \kappa_{\nu}I_\nu = \epsilon_\nu")
+        VGroup(BeerLambert_title_moved, BeerLambert_eq_moved, BeerLambert_rewrite_title, BeerLambert_rewrite_eq).arrange(DOWN)
 
         self.play(
-            Transform(title, new_title),
-            Transform(eq, new_eq),
-            FadeIn(title2, shift=UP)
+            Transform(BeerLambert_title, BeerLambert_title_moved),
+            Transform(BeerLambert_eq, BeerLambert_eq_moved),
+            FadeIn(BeerLambert_rewrite_title, shift=UP)
         )
-        self.play(Write(eq2))
+        self.play(Write(BeerLambert_rewrite_eq))
         self.wait()
 
-        eq_left = eq2
-        new_title = Tex(r'We introduce an "integrant factor"\\defined such as:')
-        new_eq = MathTex(r"\frac{d\mu}{ds} = \mu \kappa_\nu")
+        # Erase and keep rewrited form for later
+
+        self.play(
+            FadeOut(BeerLambert_title, BeerLambert_rewrite_title, BeerLambert_eq)
+        )
+        self.play(
+            BeerLambert_rewrite_eq.animate.to_corner(UP + LEFT)
+        )
+
+        # Integrant factor ----------------------------------------------------
+
+        # Definition
+
+        IntegrantFractor_title = Tex(r'We introduce an "integrant factor"\\defined such as:')
+        IntegrantFractor_def = MathTex(r"\frac{d\mu}{ds} = \mu \kappa_\nu")
         VGroup(new_title, new_eq).arrange(DOWN)
 
         self.play(
-            FadeOut(title, title2, eq)
+            FadeIn(IntegrantFractor_title, shift=UP),
         )
         self.play(
-            eq_left.animate.to_corner(UP + LEFT)
-        )
-        self.play(
-            FadeIn(new_title, shift=UP),
-        )
-        self.play(
-            Write(new_eq),
+            Write(IntegrantFractor_def),
         )
         self.wait()
-        title = new_title
-        eq = new_eq
 
-        new_title = title.copy()
-        new_eq = eq.copy()
-        title2 = Tex(r"It's form is then")
-        eq2 = MathTex(r"\mu = e^{\int \kappa_\nu ds}")
-        VGroup(new_title, new_eq, title2, eq2).arrange(DOWN)
+        # Solving
+
+        IntegrantFractor_title_moved = IntegrantFractor_title.copy()
+        IntegrantFractor_def_moved = IntegrantFractor_def.copy()
+        IntegrantFractor_rewrite_title = Tex(r"It's form is then")
+        IntegrantFractor_expression = MathTex(r"\mu = e^{\int \kappa_\nu ds}")
+        VGroup(IntegrantFractor_title_moved, IntegrantFractor_def_moved, IntegrantFractor_rewrite_title, IntegrantFractor_expression).arrange(DOWN)
 
         self.play(
-            Transform(title, new_title),
-            Transform(eq, new_eq),
-            FadeIn(title2, shift=UP)
+            Transform(IntegrantFractor_title, IntegrantFractor_title_moved),
+            Transform(IntegrantFractor_def, IntegrantFractor_def_moved),
+            FadeIn(IntegrantFractor_rewrite_title, shift=UP)
         )
-        self.play(Write(eq2))
+        self.play(Write(IntegrantFractor_expression))
         self.wait()
 
-        eq_right = eq2.copy()
-        eq_right.to_corner(UP + RIGHT)
+        # Erase and keep expression form for later
+
+        IntegrantFractor_expression_moved = eq2.copy().to_corner(UP + RIGHT)
 
         self.play(
-            FadeOut(title, title2, eq)
+            FadeOut(IntegrantFractor_title, IntegrantFractor_rewrite_title, IntegrantFractor_def)
         )
         self.play(
-            Transform(eq2, eq_right)
+            Transform(IntegrantFractor_expression, IntegrantFractor_expression_moved)
         )
+
+        # Beer Lambert law with integrant factor ------------------------------
+
+        # TODO: continue the rewrite
 
         eq = eq_left
         new_eq = eq.copy()

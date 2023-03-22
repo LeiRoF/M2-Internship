@@ -525,3 +525,37 @@ I will try to fix the problems in the dataset. While waiting 13 hours to generat
 ![](img/2023-03-21-15-11-48.png)
 
 It still doesn't converge and I don't know why... I don't think the good dataset will fix this issue, so I will try to simplify (again) the problem to have a basic perceptron, and then increase the complexity of the network a little bit at a time (not the most efficient way to design a network but in this way, I will maybe find out what I'm doing wrong).
+
+## 22/03/2023
+
+I found the issue that gave me weird dust maps : the resolution of the map in the SOC config was incorrect. Moreover, my space range was too small to be able to see bright part of very diffuse clouds (the bright part is then external part, which is far from the center of the cloud).
+
+The SOC images now seems consistent.
+
+On the mass however, I still have wrong values. In my computations, for a cloud in a plummer profile of 0.02 parsec radius and a max density of 1000 protons per cubic centimeter, I get a mass of ~532 solar mass, which is clearly too big.
+
+![](img/2023-03-22-17-20-13.png)
+
+But when I estimate the mass of a cloud with a constant density of 1000 protons per cubic centimeter (so by being very optimistic of the number of particles) included in a sphere of 0,02 parsec radius, I get a mass of ~0.002 solar mass, which makes more sense.
+
+![](img/2023-03-22-17-17-31.png)
+
+The problem is in the computation of the total number of particles in the cloud. I have $2 \times 10^{59}$ with my program, but only $9 \times 10^{53}$ with the quick computation.
+
+I am using
+
+$$
+N = \int n(\vec r) \times dV
+$$
+
+Which is implemented in the code in at the line 308 with
+
+```python
+n_tot = np.sum(density_cube, axis=(0,1,2)) * dV
+```
+
+Where `density_cube` is the density map in hydrogen atom per cubic centimeter and `dV` is the volume of a voxel, in cubic centimeter.
+
+In order to avoid problem with units, I added the astropy package that is handling the units for me. Unfortunately it didn't changed anything, so the units was already correct.
+
+
