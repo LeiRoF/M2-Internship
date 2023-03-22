@@ -6,6 +6,7 @@ from scipy.signal import argrelextrema
 import subprocess
 from LRFutils import progress
 from astropy import units as u
+from astropy import constants as const
 
 
 
@@ -18,18 +19,24 @@ from astropy import units as u
 # Configuration ---------------------------------------------------------------
 
 N = 64 # resolution in pixel
-space_range, space_step = np.linspace(-1, 1, N, endpoint=True, retstep=True) # Space range (1D but serve as base for 3D)
+space_range, space_step = np.linspace(-25, 25, N, endpoint=True, retstep=True) # Space range (1D but serve as base for 3D)
+
+space_range *= u.pc # Space range in parsec
+space_step  *= u.pc # Space step in parsec
 
 channels = 128 # number of velocity channels
 
-T = 10 # Kinetic temperature [K]
+T = 10 * u.K # Kinetic temperature [K]
 
 CO_fractional_abundance  = 1e-4 # particle / hydrogen atom
 N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 
-n_List = np.linspace(1e3,  1e6, 10, endpoint=True) # Density from 10^3 to 10^6 hydrogen atom per cm^-3
-r_List = np.linspace(0.02, 1.0, 10, endpoint=True) # Core radius from 0.02 to 1 parsec
-p_List = np.linspace(1.5,  2.5, 10, endpoint=True) # Sharpness of the plummer profile from 1.5 to 2.5
+n_List = np.linspace(1e3, 1e6, 10, endpoint=True) * u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
+# n_List = np.array([1e6])
+r_List = np.linspace(0.02, 1.0, 10, endpoint=True) * u.pc # Core radius from 0.02 to 1 parsec
+# r_List = np.array([1.0])
+p_List = np.flip(np.linspace(1.5,  2.5, 10, endpoint=True)) # Sharpness of the plummer profile from 1.5 to 2.5
+# p_List = np.array([1.5])
 
 
 # Environment -----------------------------------------------------------------
@@ -39,9 +46,9 @@ R = np.sqrt(X**2 + Y**2 + Z**2)
 
 # Global functions ------------------------------------------------------------
 
-def plummer(r:float, R:float, p:float) -> float:
+def plummer(M:float, r:float, R:float, p:float) -> float:
 
-    return 3/(4 * np.pi * R**3) * (1 + r**p / R**p)**(-5/2)
+    return 3 * M /(4 * np.pi * R**3) * (1 + r**p / R**p)**(-5/2)
 
 
 
@@ -167,13 +174,13 @@ def write_SOC_cloud(N:int, density_cube:ndarray[float]):
 
 # Initialisation file ---------------------------------------------------------
 
-def write_SOC_config(N:int):
+def write_SOC_config(N:int, space_step:float):
 
     config = f"""
-        gridlength      0.01                      # root grid cells have a size of 0.01 pc each
+        gridlength      {space_step}                      # root grid cells have a size of 0.01 pc each
         cloud           data/SOC/input_cloud.bin  # density field (reference to a file)
         mapping         {N} {N} 1.0               # output 64x64 pixels, pixel size == root-grid cell size
-        density         1.0e4                     # scale values read from tmp.cloud
+        density         1.0                       # scale values read from tmp.cloud
         seed           -1.0                       # random seed for random numbers
         directions      0.0  0.0                  # observer in direction (theta,phi)
         optical         data/SOC/aSilx.dust       # dust optical parameters
@@ -256,72 +263,152 @@ def plot_SOC():
 #==============================================================================
 
 
+# Limit of max outer density to get a good SOC image
+# Above this limit, the heated part of the gaz get out of the observation frame
+
+# max_outer_layer_density = 5e-2 # H atom . cm^-3
+# print("Max outer layer density: ", max_outer_layer_density, "H atom . cm^-3")
+
 bar = progress.Bar(len(n_List) * len(r_List) * len(p_List), prefix="Generating images")
+
+if not os.path.isdir("data/dataset"):
+    os.mkdir("data/dataset")
 
 for i, n_H in enumerate(n_List): 
     for j, r in enumerate(r_List): 
-        for k, p in enumerate(p_List): 
+        for k, p in enumerate(p_List):
 
-            # Updating progress bar
-            bar(i*len(r_List)*len(p_List) + j*len(p_List) + k)
+            n_simu = i*len(r_List)*len(p_List) + j*len(p_List) + k
 
             # Generate cloud --------------------------------------------------
 
-            profile = plummer(R, r, p)
+            r = 0.02 * u.pc
+            p = 1.5
+            n_H = 1000 * u.cm**-3
+
+            profile = plummer(1*u.Msun, R, r, p)
+            print(profile.unit)
             density_cube = n_H * profile / np.max(profile)
+            print(density_cube.unit)
 
-            # CO simulation ---------------------------------------------------
-
-            write_LOC_cloud(N, density_cube, CO_fractional_abundance)
-            write_LOC_config(N, "CO", channels)
-            run_LOC()
-
-            CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
+            # Computing mass --------------------------------------------------
             
-            # N2H+ simulation -------------------------------------------------
+            hydrogen_mass = const.m_p # mass of a proton
+            print(f"mP = {hydrogen_mass:.2e}")
+            mu = 2.8
+            
+            dV = (space_step)**3
+            print(f"dV = {dV:.2e}")
 
-            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            write_LOC_config(N, "N2H+", channels)
-            run_LOC()
+            dV = dV.to(u.cm**3)
+            print(f"dV = {dV:.2e}")
 
-            N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
+            print(f"D = {np.max(density_cube):.2e}")
+
+            n_tot = np.sum(density_cube, axis=(0,1,2)) * dV
+            print(f"N = {n_tot:.2e}")
+
+            mass = mu * hydrogen_mass * n_tot
+            print(f"M = {mass:.2e}")
+
+            mass = mass.to(u.Msun)
+            print(f"M = {mass:.2e}")
+
+            mass = mass.value
+
+            break
+        break
+    break
+
+"""
+            # Avoid recomputing done simulations
+            if os.path.isfile(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz"):
+                continue
+
+            ######## DEBUG
+
+            m = np.max(density_cube[0,0,:])
+            # print(f"n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2e}. Outer layer max density: {m} H atom . cm^-3")
+            # if m > max_outer_layer_density:
+            #     # print("Ignored\n")
+            #     continue
+
+            # print("Accepted\n")
+            # continue
+
+            # profile_1D = plummer(np.abs(space_range), r, p)
+            # profile_1D = profile_1D / np.max(profile_1D)
+            # print(f"{profile_1D[0]}")
+            # profile_1D = n_H * profile_1D
+
+            # print(f"Outer 1D density : {profile_1D[0]} H atom . cm^-3")
+
+            # plt.figure()
+            # plt.plot(space_range, profile_1D, label=f"n_H={n_H:.0e}, r={r:.2f}, p={p:.2f}")
+            # plt.xlabel("Distance from center (pc)")
+            # plt.ylabel(r"Density (H atom . cm$^{-3}$)")
+            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_1D-profile.png", dpi=300)
+            # plt.close()
+
+            # plt.figure()
+            # plt.imshow(np.sum(density_cube, axis=-1) * space_step * pc_to_cm, origin="lower")
+            # cbar = plt.colorbar()
+            # cbar.set_label(r"Density (H atom . cm$^{-2}$)") 
+            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Column_density.png", dpi=300)
+            # plt.close()
+
+            ######## END DEBUG
+
+            # Updating progress bar
+            bar(n_simu)
+
+            # # CO simulation ---------------------------------------------------
+
+            # write_LOC_cloud(N, density_cube, CO_fractional_abundance)
+            # write_LOC_config(N, "CO", channels)
+            # run_LOC()
+
+            # CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
+            
+            # # N2H+ simulation -------------------------------------------------
+
+            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            # write_LOC_config(N, "N2H+", channels)
+            # run_LOC()
+
+            # N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
 
             # Dust simulation -------------------------------------------------
-            
+
             write_SOC_cloud(N, density_cube)
-            write_SOC_config(N)
+            write_SOC_config(N, space_step)
             run_SOC()
 
             freq, S = read_SOC_output()
             ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
             dust_image = S[ifreq,:,:]
 
+            arg_max = np.argmax(dust_image[N//2,:])
+
+            # print(f"\nMaximum reeched at Imax = {dust_image[N//2,arg_max]:.2e}")
+            # print(f"Density at Imax : {density_cube[N//2,N//2,arg_max]:.2e} H atom . cm^-3")
+            # print(f"Number of atom crossed to reech Imax: {np.sum(density_cube[N//2,N//2,:arg_max]) * (space_step * pc_to_cm)**3:.2e} H atoms")
+            # print(f"Mean density crossed to reech Imax: {np.mean(density_cube[N//2,N//2,:arg_max]):.2e} H atom . cm^-3")
+
             # Save data -------------------------------------------------------
-
-            # TODO
-            
-            msun = 1.98847e30 * u.kg
-            hydrogen_mass = 1.67e-24 * u.g
-            mu = 2.8
-
-            pc_to_cm = 3.0857e18 # cm/pc
-            
-            volume = ( ((space_range[-1] - space_range[0])) * pc_to_cm )**3
-
-            n_tot = np.sum(density_cube, axis=(0,1,2)) * volume
-
-            mass = mu * hydrogen_mass * n_tot / msun
 
             plt.figure()
             plt.imshow(dust_image)
-            plt.colorbar()
-            plt.savefig(f"data/dataset/n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.png", dpi=300)
+            cbar = plt.colorbar()
+            cbar.set_label(r"Surface brightness (MJy . sr$^{-1}$)")
+            plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Dust-map.png", dpi=300)
+            plt.close()
 
-            np.savez_compressed(f"data/dataset/n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz",
-                CO_cube = CO_cube,
-                N2H_cube = N2H_cube,
-                CO_v = CO_v,
-                N2H_v = N2H_v,
+            np.savez_compressed(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz",
+                # CO_cube = CO_cube,
+                # N2H_cube = N2H_cube,
+                # CO_v = CO_v,
+                # N2H_v = N2H_v,
                 dust_image = dust_image,
                 density_cube = density_cube,
                 n_H = n_H,
@@ -329,7 +416,8 @@ for i, n_H in enumerate(n_List):
                 p = p,
                 mass = mass
             )
-
+"""
+            
 # End progress bar
 bar(len(n_List) * len(r_List) * len(p_List))
 
