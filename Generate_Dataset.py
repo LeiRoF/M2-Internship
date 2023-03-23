@@ -269,7 +269,7 @@ def plot_SOC():
 # max_outer_layer_density = 5e-2 # H atom . cm^-3
 # print("Max outer layer density: ", max_outer_layer_density, "H atom . cm^-3")
 
-bar = progress.Bar(len(n_List) * len(r_List) * len(p_List), prefix="Generating images")
+bar = progress.Bar(len(n_List) * len(r_List) * len(p_List))
 
 if not os.path.isdir("data/dataset"):
     os.mkdir("data/dataset")
@@ -278,89 +278,35 @@ for i, n_H in enumerate(n_List):
     for j, r in enumerate(r_List): 
         for k, p in enumerate(p_List):
 
+            # Updating progress bar
             n_simu = i*len(r_List)*len(p_List) + j*len(p_List) + k
+            bar(n_simu)
+
 
             # Generate cloud --------------------------------------------------
 
-            r = 0.02 * u.pc
-            p = 1.5
-            n_H = 1000 * u.cm**-3
-
             profile = plummer(1*u.Msun, R, r, p)
-            print(profile.unit)
             density_cube = n_H * profile / np.max(profile)
-            print(density_cube.unit)
 
             # Computing mass --------------------------------------------------
             
             hydrogen_mass = const.m_p # mass of a proton
-            print(f"mP = {hydrogen_mass:.2e}")
             mu = 2.8
             
             dV = (space_step)**3
-            print(f"dV = {dV:.2e}")
-
             dV = dV.to(u.cm**3)
-            print(f"dV = {dV:.2e}")
 
-            print(f"D = {np.max(density_cube):.2e}")
-
-            n_tot = np.sum(density_cube, axis=(0,1,2)) * dV
-            print(f"N = {n_tot:.2e}")
+            n_tot = np.sum(density_cube) * dV
 
             mass = mu * hydrogen_mass * n_tot
-            print(f"M = {mass:.2e}")
 
             mass = mass.to(u.Msun)
-            print(f"M = {mass:.2e}")
 
-            mass = mass.value
+            simu_name = f"data/dataset/{n_simu}_n={n_H.value:.2f}_r={r.value:.2f}_p={p:.2f}_m={mass.value:.2f}"
 
-            break
-        break
-    break
-
-"""
             # Avoid recomputing done simulations
-            if os.path.isfile(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz"):
+            if os.path.isfile(f"{simu_name}.npz"):
                 continue
-
-            ######## DEBUG
-
-            m = np.max(density_cube[0,0,:])
-            # print(f"n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2e}. Outer layer max density: {m} H atom . cm^-3")
-            # if m > max_outer_layer_density:
-            #     # print("Ignored\n")
-            #     continue
-
-            # print("Accepted\n")
-            # continue
-
-            # profile_1D = plummer(np.abs(space_range), r, p)
-            # profile_1D = profile_1D / np.max(profile_1D)
-            # print(f"{profile_1D[0]}")
-            # profile_1D = n_H * profile_1D
-
-            # print(f"Outer 1D density : {profile_1D[0]} H atom . cm^-3")
-
-            # plt.figure()
-            # plt.plot(space_range, profile_1D, label=f"n_H={n_H:.0e}, r={r:.2f}, p={p:.2f}")
-            # plt.xlabel("Distance from center (pc)")
-            # plt.ylabel(r"Density (H atom . cm$^{-3}$)")
-            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_1D-profile.png", dpi=300)
-            # plt.close()
-
-            # plt.figure()
-            # plt.imshow(np.sum(density_cube, axis=-1) * space_step * pc_to_cm, origin="lower")
-            # cbar = plt.colorbar()
-            # cbar.set_label(r"Density (H atom . cm$^{-2}$)") 
-            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Column_density.png", dpi=300)
-            # plt.close()
-
-            ######## END DEBUG
-
-            # Updating progress bar
-            bar(n_simu)
 
             # # CO simulation ---------------------------------------------------
 
@@ -380,8 +326,8 @@ for i, n_H in enumerate(n_List):
 
             # Dust simulation -------------------------------------------------
 
-            write_SOC_cloud(N, density_cube)
-            write_SOC_config(N, space_step)
+            write_SOC_cloud(N, density_cube.value)
+            write_SOC_config(N, space_step.value)
             run_SOC()
 
             freq, S = read_SOC_output()
@@ -390,21 +336,16 @@ for i, n_H in enumerate(n_List):
 
             arg_max = np.argmax(dust_image[N//2,:])
 
-            # print(f"\nMaximum reeched at Imax = {dust_image[N//2,arg_max]:.2e}")
-            # print(f"Density at Imax : {density_cube[N//2,N//2,arg_max]:.2e} H atom . cm^-3")
-            # print(f"Number of atom crossed to reech Imax: {np.sum(density_cube[N//2,N//2,:arg_max]) * (space_step * pc_to_cm)**3:.2e} H atoms")
-            # print(f"Mean density crossed to reech Imax: {np.mean(density_cube[N//2,N//2,:arg_max]):.2e} H atom . cm^-3")
-
             # Save data -------------------------------------------------------
 
-            plt.figure()
-            plt.imshow(dust_image)
-            cbar = plt.colorbar()
-            cbar.set_label(r"Surface brightness (MJy . sr$^{-1}$)")
-            plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Dust-map.png", dpi=300)
-            plt.close()
+            # plt.figure()
+            # plt.imshow(dust_image)
+            # cbar = plt.colorbar()
+            # cbar.set_label(r"Surface brightness (MJy . sr$^{-1}$)")
+            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Dust-map.png", dpi=300)
+            # plt.close()
 
-            np.savez_compressed(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}.npz",
+            np.savez_compressed(f"{simu_name}.npz",
                 # CO_cube = CO_cube,
                 # N2H_cube = N2H_cube,
                 # CO_v = CO_v,
@@ -416,12 +357,6 @@ for i, n_H in enumerate(n_List):
                 p = p,
                 mass = mass
             )
-"""
             
 # End progress bar
-bar(len(n_List) * len(r_List) * len(p_List))
-
-
-            
-
-            
+bar(len(n_List) * len(r_List) * len(p_List))           
