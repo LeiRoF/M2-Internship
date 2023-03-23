@@ -579,3 +579,20 @@ Ok, there was no bug actually... this difference in the number of atoms is due t
 
 The server is very slow so it's hard to move forward (just starting a ssh session takes several minutes and can be stopped at any time). I can't switch on my laptop because the dataset is on the server and I can't download it in a reasonable time. I will then focus on writing some documentation and the report.
 
+It came back to normal
+
+I have now a good looking dataset! 🎉
+
+Here sorted by mass:
+
+![](img/2023-03-23-15-10-47.png)
+
+I succeeded to make the network converge! 🎉
+
+The problem was due to the "adam" optimizer that I used. I switched to "sgd" and it worked. I don't understand yet why "adam" was not working, but I will investigate that later.
+
+![](img/2023-03-23-16-30-40.png)
+
+![](img/2023-03-23-16-44-38.png)
+
+> *There is definitely days with and days without*
