@@ -504,6 +504,21 @@ According to the time it took me to generate these data, I can estimate the time
 
 I started to work on SOC to generate the dust map.
 
+In a real case, we have to be carful of the shape of the spectrum and the shape of the sensor sensitivity curve.
+
+
+<div align=center>
+<div style="width:400px">
+
+![](img/2023-03-23-12-55-59.png)
+
+</div>
+</div>
+
+> *Note that this is a simplified scheme because it is not directly the area under both curve that matter, but the area under the resulting curve of the multiplication of both. But the phenomenon that I want to show here is still the same: according to the distributions, the detected intensity can vary*
+
+In our case, we assume that SOC is taking a perfect sensor (a door distribution).
+
 ## 17/03/2023
 
 I succeeded in generating a dust map and I started to generate a clean dataset (hinking the structure of the data to be simple to manipulate afterward).
@@ -558,4 +573,9 @@ Where `density_cube` is the density map in hydrogen atom per cubic centimeter an
 
 In order to avoid problem with units, I added the astropy package that is handling the units for me. Unfortunately it didn't changed anything, so the units was already correct.
 
+## 23/03/2023
+
+Ok, there was no bug actually... this difference in the number of atoms is due to the space range I took, which was huge (50 parsec wide) to fit the biggest cloud in it (the solution for the dust map issue explained last day). Intuitively, I though that most of the mass is included in the center of the plummer and the rest was just a very thin shell, but it's not always the case. According to the parameter of the plummer, the mass distribution can be almost flat.
+
+The server is very slow so it's hard to move forward (just starting a ssh session takes several minutes and can be stopped at any time). I can't switch on my laptop because the dataset is on the server and I can't download it in a reasonable time. I will then focus on writing some documentation and the report.
 

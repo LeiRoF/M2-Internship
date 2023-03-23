@@ -1,3 +1,8 @@
+---
+html_theme.sidebar_secondary.remove: true
+html_theme.sidebar_primary.remove: true
+---
+
 # 👋 Getting Started
 
 ## 🔌 Installation
@@ -16,22 +21,28 @@ Due to the dependency to AMUSE which only work under Linux or MacOS, this projec
 
 Then, follow the steps below:
 
-1. Install AMUSE dependencies by following the instructions on [this page](https://amuse.readthedocs.io/en/latest/install/howto-install-AMUSE.html) and these additional ones (on my system, the dependencies indicated by AMUSE documentation were not enough)
+1. Install AMUSE dependencies by following the instructions on [this page](https://amuse.readthedocs.io/en/latest/install/howto-install-AMUSE.html)
+
+    ````{admonition} Additional dependencies
+    :class: warning
+
+    On the system I used, the dependencies indicated by AMUSE documentation were not enough and I had to install the following dependencies. Unfortunately, there is no reliable method to install it properly... you will have to try and pray, good luck 🤞
 
     ```bash
     sudo apt-get install curl g++ gettext zlib1g-dev
     ```
+    ````
 
 2. Clone this repository:
 
     ```bash
-    git clone https://github.com/LeiRoF/M2-Retrieving-prestellar-cloud-velocity-by-Machine-Learning
+    git clone https://github.com/Leirof/M2-Unveiling-3D-structure-of-pre-stellar-clouds
     ```
 
 3. Move to the project directory:
 
     ```bash
-    cd M2-Retrieving-prestellar-cloud-velocity-by-Machine-Learning
+    cd M2-Unveiling-3D-structure-of-pre-stellar-clouds
     ```
 
 4. (optional but recommended) Create a virtual environment
