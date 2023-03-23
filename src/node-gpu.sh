@@ -6,6 +6,9 @@
 #OAR -E logs/jupyter-error.log
 #OAR -t besteffort
 
+echo " " > logs/jupyter-error.log
+echo " " > logs/jupyter.log
+
 export http_proxy=http://11.0.0.254:3142/
 export https_proxy=http://11.0.0.254:3142/
 
