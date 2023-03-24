@@ -1,7 +1,7 @@
 # Unveiling 3D strucure of prestellar cores
 
 <div align=center>
-<a href="https://retrieving-prestellar-cloud-velocity-by-machine-learning.readthedocs.io/en/latest/">
+<a href="https://unveiling-3d-structure-of-prestellar-cores.docs.foriel.xyz/en/latest/">
 
 <img src="docs/img/documentation.png" width="100">
 
