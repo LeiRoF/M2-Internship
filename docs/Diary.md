@@ -596,3 +596,31 @@ The problem was due to the "adam" optimizer that I used. I switched to "sgd" and
 ![](img/2023-03-23-16-44-38.png)
 
 > *There is definitely days with and days without*
+
+## 24/03/2023
+
+Now, the problem is that the network is too simple to be overtrained. It is then not possible to say where the networkd reached a minimum... because there is no, it will continue to make very fine adjustments to reach always a slightly better precision.
+
+Here is the loss evolution in a log log scale:
+
+![](img/2023-03-24-15-23-21.png)
+
+As it takes some minutes to train it properly, I will try to use the GPU (which is not the case yet because of missing dependencies) and then add more complexity to the network.
+
+## 25/03/2023
+
+With the help of Gautier Lecoutre, I managed to make work tensorflow on the GPU version. However, I expected a huge speedup, but it's not the case. Maybe it's because the current neural network is not complexe enough...
+
+## 26/03/2023
+
+I modified my code to support multiple input and outputs.
+
+I also implemented a way to archive all information about a training session in order to be able to compare multiple models.
+
+This system also classify training session according to the nature of the problem (relying on the input aand output labels), because it would be a nonsense to compare models that doesn't have the same input or output.
+
+![](img/2023-03-28-17-19-54.png)
+
+![](img/2023-03-28-17-20-27.png)
+
+![](img/2023-03-28-17-21-09.png)
