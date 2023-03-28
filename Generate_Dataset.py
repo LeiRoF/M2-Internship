@@ -38,6 +38,7 @@ r_List = np.linspace(0.02, 1.0, 10, endpoint=True) * u.pc # Core radius from 0.0
 p_List = np.flip(np.linspace(1.5,  2.5, 10, endpoint=True)) # Sharpness of the plummer profile from 1.5 to 2.5
 # p_List = np.array([1.5])
 
+debug = True
 
 # Environment -----------------------------------------------------------------
 
@@ -99,7 +100,6 @@ def write_LOC_config(N:int, molecule:str, channels:int):
         iterations     5                   #  number of iterations
         nside          2                   #  NSIDE parameter determining the number of rays (angles)
         direction      90 0.001            #  theta, phi [deg] for the direction towards the observer
-        points         64 64               #  number of pixels in the output maps
         grid           3.0                 #  map pixel size [arcsec]
         spectra        1 0  2 1            #  spectra written for transitions == upper lower (pair of integers)
         transitions    1 0  2 1            #  Tex saved for transitions (upper and lower levels of each transition)
@@ -140,8 +140,9 @@ def LOC_read_Tex_3D(filename):
 # Run LOC ---------------------------------------------------------------------
 
 def run_LOC():
+    global debug
 
-    subprocess.run(["python","src/LOC/LOC_OT.py","data/LOC/input_config.ini"], capture_output=True)
+    subprocess.run(["python","src/LOC/LOC_OT.py","data/LOC/input_config.ini"], capture_output=not debug)
 
     def move_file(src, dst):
         try:
@@ -204,8 +205,9 @@ def write_SOC_config(N:int, space_step:float):
 # Run SOC ---------------------------------------------------------------------
 
 def run_SOC():
+    global debug
 
-    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=True)
+    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=not debug)
 
     def move_file(src, dst):
         if os.path.isdir(dst):
@@ -232,7 +234,11 @@ def read_SOC_output():
         S        = fromfile(fp, float32).reshape(nfreq, dims[0], dims[1]) # read intensities
         S       *= 1.0e-5                                     # convert surface brightness from Jy/sr to MJy/sr
 
-    return freq, S
+    with open('data/SOC/output/temperature.save', 'rb') as fp:
+        NX, NY, NZ, _, _, _ = fromfile(fp, int32, 6)
+        T = fromfile(fp, float32).reshape(NZ, NY, NX)
+
+    return freq, S, T
 
 # Plot ------------------------------------------------------------------------
 
@@ -308,21 +314,21 @@ for i, n_H in enumerate(n_List):
             if os.path.isfile(f"{simu_name}.npz"):
                 continue
 
-            # # CO simulation ---------------------------------------------------
+            # CO simulation ---------------------------------------------------
 
-            # write_LOC_cloud(N, density_cube, CO_fractional_abundance)
-            # write_LOC_config(N, "CO", channels)
-            # run_LOC()
+            write_LOC_cloud(N, density_cube, CO_fractional_abundance)
+            write_LOC_config(N, "CO", channels)
+            run_LOC()
 
-            # CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
+            CO_v, CO_cube = LOC_read_spectra_3D("data/LOC/output/res_CO_01-00.spe")
             
-            # # N2H+ simulation -------------------------------------------------
+            # N2H+ simulation -------------------------------------------------
 
-            # write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
-            # write_LOC_config(N, "N2H+", channels)
-            # run_LOC()
+            write_LOC_cloud(N, density_cube, N2H_fractional_abundance)
+            write_LOC_config(N, "N2H+", channels)
+            run_LOC()
 
-            # N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
+            N2H_v, N2H_cube = LOC_read_spectra_3D("data/LOC/output/res_N2H+_01-00.spe")
 
             # Dust simulation -------------------------------------------------
 
@@ -330,7 +336,7 @@ for i, n_H in enumerate(n_List):
             write_SOC_config(N, space_step.value)
             run_SOC()
 
-            freq, S = read_SOC_output()
+            freq, S, T = read_SOC_output()
             ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
             dust_image = S[ifreq,:,:]
 
@@ -346,17 +352,27 @@ for i, n_H in enumerate(n_List):
             # plt.close()
 
             np.savez_compressed(f"{simu_name}.npz",
-                # CO_cube = CO_cube,
-                # N2H_cube = N2H_cube,
-                # CO_v = CO_v,
-                # N2H_v = N2H_v,
+                CO_cube = CO_cube,
+                N2H_cube = N2H_cube,
+                CO_v = CO_v,
+                N2H_v = N2H_v,
                 dust_image = dust_image,
+                dust_temperature = T,
                 density_cube = density_cube,
                 n_H = n_H,
                 r = r,
                 p = p,
                 mass = mass
             )
+
+            if debug:
+                break
+        
+        if debug:
+            break
+    
+    if debug:
+        break
             
 # End progress bar
 bar(len(n_List) * len(r_List) * len(p_List))           

@@ -23,7 +23,3 @@ I started to use astropy.units to handle the units of the data. This is a very p
 
 By wanting to be efficient, I sometimes tried to stay focus on a problem until it was solved. I spent entire days doing so... but in the end I quickly solved these problems the next morning. 
 In purely informatic projects, the problems are almost always algorithmic and some very simple routines are enough to solve them without having a 100% active brain. With physical problems however, "bugs" often require to think a lot more about the fundamental physics behind the problem.
-
-## (Preliminary) Conclusion
-
-Most of these problems have a common part: my desire to go fast, straight to the point. It's a good quality in most of my off-studies activities, but I will need to work on that to be more efficient in a sciencitific context.

@@ -2,10 +2,11 @@
 LRFutils   == 0.1.2
 numpy
 matplotlib
-tensorflow
+tensorflow==2.11.0
 scipy
 pyvtk
 multiprocess
 astropy
 bokeh
 pandas
+pickle5
