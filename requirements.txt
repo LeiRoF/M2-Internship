@@ -3,6 +3,7 @@ LRFutils   == 0.1.2
 numpy
 matplotlib
 tensorflow==2.11.0
+tensorrt
 scipy
 pyvtk
 multiprocess
