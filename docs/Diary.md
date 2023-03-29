@@ -607,11 +607,11 @@ Here is the loss evolution in a log log scale:
 
 As it takes some minutes to train it properly, I will try to use the GPU (which is not the case yet because of missing dependencies) and then add more complexity to the network.
 
-## 25/03/2023
+## 27/03/2023
 
 With the help of Gautier Lecoutre, I managed to make work tensorflow on the GPU version. However, I expected a huge speedup, but it's not the case. Maybe it's because the current neural network is not complexe enough...
 
-## 26/03/2023
+## 28/03/2023
 
 I modified my code to support multiple input and outputs.
 
@@ -624,3 +624,13 @@ This system also classify training session according to the nature of the proble
 ![](img/2023-03-28-17-20-27.png)
 
 ![](img/2023-03-28-17-21-09.png)
+
+## 29/03/2023
+
+I edited the code to make work the functional model. Now I can quickly change the inputs and output and the model.
+
+I ran several trainings to get total mass and max temperature with different models, inputs etc. to see how the network behave according to it's parameters. On such "simple" problem, it looks like there is a surprising tendency: the more the network is complexe, the more it converge faster (in addition to converge to a better precision).
+
+However, after a certain point, simple network seems to start converging faster than complexe one. Maybe if we train the network for a long time, the precision of simple network will be better than the complexe one... but it takes too much time.
+
+Speaking of time, I noticed than the GPU is stille not used (again, a missing lib), which is quite limitating when I start to train convolutive neural networks (until here it was minutes, now it's dozens of minutes or even hours)
