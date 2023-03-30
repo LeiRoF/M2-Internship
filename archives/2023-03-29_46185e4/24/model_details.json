@@ -1,0 +1,22 @@
+{
+    "summary": "Model: \"model\"\n__________________________________________________________________________________________________\n Layer (type)                   Output Shape         Param #     Connected to                     \n==================================================================================================\n Dust Map (InputLayer)          [(None, 64, 64, 1)]  0           []                               \n                                                                                                  \n flatten (Flatten)              (None, 4096)         0           ['Dust Map[0][0]']               \n                                                                                                  \n dense_1 (Dense)                (None, 128)          524416      ['flatten[0][0]']                \n                                                                                                  \n dense (Dense)                  (None, 128)          524416      ['flatten[0][0]']                \n                                                                                                  \n CO Cube (InputLayer)           [(None, 64, 64, 128  0           []                               \n                                , 1)]                                                             \n                                                                                                  \n CO Velocity (InputLayer)       [(None, 128)]        0           []                               \n                                                                                                  \n Dust Obs. Wavelenght [um] (Inp  [(None, 1)]         0           []                               \n utLayer)                                                                                         \n                                                                                                  \n N2H Cube (InputLayer)          [(None, 64, 64, 128  0           []                               \n                                , 1)]                                                             \n                                                                                                  \n N2H+ Velocity (InputLayer)     [(None, 128)]        0           []                               \n                                                                                                  \n Max_Temperature (Dense)        (None, 1)            129         ['dense_1[0][0]']                \n                                                                                                  \n Total_Mass (Dense)             (None, 1)            129         ['dense[0][0]']                  \n                                                                                                  \n==================================================================================================\nTotal params: 1,049,090\nTrainable params: 1,049,090\nNon-trainable params: 0\n__________________________________________________________________________________________________",
+    "loss": "mean_squared_error",
+    "optimizer": "SGD",
+    "metrics": [
+        "MeanAbsoluteError(name=MAE,dtype=float32)"
+    ],
+    "valid_frac": 0.2,
+    "test_frac": 0.1,
+    "epochs": 1000,
+    "batch_size": 100,
+    "training_time": 306.11716771125793,
+    "score": [
+        0.0010118273785337806,
+        8.857349894242361e-05,
+        0.0009232538286596537,
+        0.007034903857856989,
+        0.02305726334452629
+    ],
+    "dataset_size": 1000,
+    "path": "./archives/2023-03-29_46185e4/24"
+}

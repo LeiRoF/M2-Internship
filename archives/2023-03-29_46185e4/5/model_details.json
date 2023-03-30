@@ -1,0 +1,21 @@
+{
+    "summary": "Model: \"model\"\n_________________________________________________________________\n Layer (type)                Output Shape              Param #   \n=================================================================\n Dust Map (InputLayer)       [(None, 64, 64, 1)]       0         \n                                                                 \n flatten (Flatten)           (None, 4096)              0         \n                                                                 \n dense (Dense)               (None, 128)               524416    \n                                                                 \n dense_1 (Dense)             (None, 1)                 129       \n                                                                 \n=================================================================\nTotal params: 524,545\nTrainable params: 524,545\nNon-trainable params: 0\n_________________________________________________________________",
+    "loss": [
+        "mean_squared_error"
+    ],
+    "optimizer": "SGD",
+    "metrics": [
+        "mean_absolute_error"
+    ],
+    "valid_frac": 0.2,
+    "test_frac": 0.1,
+    "epochs": 10000,
+    "batch_size": 50,
+    "training_time": 921.534770488739,
+    "score": [
+        0.0004537143977358937,
+        0.01671135053038597
+    ],
+    "dataset_size": 1000,
+    "path": "./archives/2023-03-29_46185e4/5"
+}

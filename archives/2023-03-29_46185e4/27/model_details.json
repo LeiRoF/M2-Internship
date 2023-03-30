@@ -1,0 +1,30 @@
+{
+    "summary": "Model: \"model_1\"\n__________________________________________________________________________________________________\n Layer (type)                   Output Shape         Param #     Connected to                     \n==================================================================================================\n Dust map (InputLayer)          [(None, 64, 64, 1)]  0           []                               \n                                                                                                  \n Dust_map_conv_1 (Conv2D)       (None, 64, 64, 16)   1040        ['Dust map[0][0]']               \n                                                                                                  \n Dust_map_max_pool_1 (MaxPoolin  (None, 16, 16, 16)  0           ['Dust_map_conv_1[0][0]']        \n g2D)                                                                                             \n                                                                                                  \n Dust_map_conv_2 (Conv2D)       (None, 16, 16, 8)    2056        ['Dust_map_max_pool_1[0][0]']    \n                                                                                                  \n Dust_map_max_pool_2 (MaxPoolin  (None, 8, 8, 8)     0           ['Dust_map_conv_2[0][0]']        \n g2D)                                                                                             \n                                                                                                  \n Dust_map_flatting (Flatten)    (None, 512)          0           ['Dust_map_max_pool_2[0][0]']    \n                                                                                                  \n Total_mass_dense (Dense)       (None, 4)            2052        ['Dust_map_flatting[0][0]']      \n                                                                                                  \n CO cube (InputLayer)           [(None, 64, 64, 128  0           []                               \n                                , 1)]                                                             \n                                                                                                  \n Max_temperature (Dense)        (None, 1)            5           ['Total_mass_dense[0][0]']       \n                                                                                                  \n Total_mass (Dense)             (None, 1)            5           ['Total_mass_dense[0][0]']       \n                                                                                                  \n==================================================================================================\nTotal params: 5,158\nTrainable params: 5,158\nNon-trainable params: 0\n__________________________________________________________________________________________________",
+    "loss": "mean_squared_error",
+    "optimizer": "SGD",
+    "metrics": [
+        "MeanAbsoluteError(name=MAE,dtype=float32)"
+    ],
+    "valid_frac": 0.2,
+    "test_frac": 0.1,
+    "epochs": 1000,
+    "batch_size": 100,
+    "training_time": 267.9132912158966,
+    "score": [
+        0.02544543705880642,
+        8.622581844974775e-06,
+        0.02543681301176548,
+        0.002399340970441699,
+        0.11840564757585526
+    ],
+    "dataset_size": 1000,
+    "path": "./archives/2023-03-29_46185e4/27",
+    "inputs": [
+        "Dust map",
+        "CO cube"
+    ],
+    "outputs": [
+        "Total mass",
+        "Max temperature"
+    ]
+}
