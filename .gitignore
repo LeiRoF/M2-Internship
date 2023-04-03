@@ -14,3 +14,10 @@ dataset/
 dataset_old/
 .vscode/
 src/manim/media/
+data/dataset.npz
+
+archives_old/
+archives/
+
+data_old/
+data/
