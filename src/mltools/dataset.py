@@ -19,18 +19,67 @@ However, it must be consistent for a given field.
 import numpy as np
 import type_enforced
 from typing import Union
+import os
+from LRFutils import progress
+from . import sysinfo
 
-@type_enforced.Enforcer
+# @type_enforced.Enforcer
 class Dataset():
 
-    def __init__(self, name:str='Unammed', x:dict[np.ndarray]=None, y:dict[np.ndarray]=None):
+    def __init__(self, name:str='Unammed', loader=None, raw_path:Union[str,None]=None, archive_path:Union[str,None]=None, x:Union[dict[np.ndarray],None]=None, y:Union[dict[np.ndarray],None]=None, autosave:bool=True, silent:bool=False) -> "Dataset":
         """Create a user-friendly dataset"""
 
-        Dataset._checkstruct(x, y)
+        if loader is not None and loader is not callable:
+            raise TypeError('"loader" must be a callable object')
 
         self.name = name
-        self.x = x
-        self.y = y
+        self.archive_path = archive_path
+
+        if loader is not None and raw_path is not None:
+            self.loader = loader
+            self.raw_path = raw_path
+            self.x, self.y = {}, {}
+            self.load(verbose = not silent)
+
+        elif x is not None and y is not None:
+            self.x = x
+            self.y = y
+            Dataset._checkstruct(x, y)
+
+        else:
+            raise ValueError('Either "loader" and "raw_path" or "x" and "y" must be provided.')
+        
+        self.process()
+        
+        if autosave:
+            self.save()
+
+    def load(self, verbose=True):
+        """Load data from indicated data pathes"""
+
+        if os.path.isfile(self.archive_path):
+            if verbose:
+                print(f'Found dataset archive, loading it: {self.archive_path}...')
+            self.load_archive()
+        
+        if verbose:
+            print(f'No dataset archive found, loading raw data from: {self.raw_path}...')
+        self.load_raw()
+
+        return self.x, self.y
+    
+    def load_raw(self, verbose=True):
+        """Load data from raw data path"""
+
+        bar = progress.Bar(len(os.listdir(self.raw_path)))
+        bar(0)
+
+        for i, item in os.listdir(self.raw_path):
+            x, y = self.loader(item)
+            self += (x, y)
+            bar(i+1, prefix=f'{sysinfo.get()}')
+
+        return x, y
 
 
     def __getitem__(self, key):
@@ -130,10 +179,18 @@ class Dataset():
         self.y.update(y)
         Dataset._checkstruct(self.x, self.y)
 
-    def __add__(self, x:np.ndarray, y:np.ndarray):
+    def __add__(self, dataset:Union["Dataset", tuple[dict[np.ndarray], dict[np.ndarray]]]):
         """Add data to the dataset"""
 
-        self.add(x, y)
+        if isinstance(dataset, Dataset):
+            self.merge(dataset)
+        else:
+            self.add(*dataset)
+
+    def merge(self, dataset:"Dataset"):
+        """Merge two datasets"""
+
+        self.add(dataset.x, dataset.y)
 
     def save(self, path:str):
         """Save the dataset to a numpy compressed file"""
