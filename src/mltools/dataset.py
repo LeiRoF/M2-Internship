@@ -38,7 +38,8 @@ class Dataset():
                  test_frac:float=0.1,
                  autosave:bool=True,
                  process=True,
-                 silent:bool=False
+                 verbose:bool=False,
+                 parent:Union["Dataset",None]=None,
                 ) -> "Dataset":
         """
         Create a user-friendly dataset.
@@ -52,6 +53,7 @@ class Dataset():
         self.loader:function = loader
         self.raw_path:str = raw_path
         self.archive_path:str = archive_path
+        self.parent:Dataset = parent
 
         if 0 > val_frac + test_frac >= 1:
             raise ValueError("val_frac, test_frac and the sum of both must be between 0 and 1.")
@@ -59,22 +61,23 @@ class Dataset():
         self.val_frac:float = val_frac
         self.test_frac:float = test_frac
 
-        self.x:dict[np.ndarray] = None
-        self.xmeans:dict[float] = None
-        self.xstds:dict[float] = None
+        self.x:dict[np.ndarray] = {}
+        self.xmeans:dict[float] = {}
+        self.xstds:dict[float] = {}
+        self.xmins:dict[float] = {}
+        self.xmaxs:dict[float] = {}
 
-        self.y:dict[np.ndarray] = None   
-        self.ymeans:dict[float] = None
-        self.ystds:dict[float] = None
+        self.y:dict[np.ndarray] = {}
+        self.ymeans:dict[float] = {}
+        self.ystds:dict[float] = {}
+        self.ymins:dict[float] = {}
+        self.ymaxs:dict[float] = {}
         
-        self._processed:bool = False
-        self._normalized:bool = False
-        self._shuffled:bool = False
-        self._splitted:bool = False
+        self._processed:bool = False if not parent else self.parent._processed
 
-        self.train:Dataset = None
-        self.val:Dataset = None
-        self.test:Dataset = None
+        self.train:Dataset = None if not parent else self.parent.train
+        self.val:Dataset = None if not parent else self.parent.val
+        self.test:Dataset = None if not parent else self.parent.test
 
         # Data loading
         if x or y:
@@ -103,15 +106,32 @@ class Dataset():
             if not os.path.isdir(raw_path):
                 raise ValueError(f"Raw data path {raw_path} is not a valid directory.")
 
-            self._load_raw(verbose=not silent)
+            self._load_raw(verbose=verbose)
             # }
 
-        if process:
-            self.process(verbose=not silent)
-        
-        if autosave and archive_path is not None:
-            logs.warn("Save archive is not implemented yet.")
-            # self.save()
+        # Process and save files
+        if self.parent is None:
+
+            if process:
+                self.process(verbose=verbose)
+            
+            if autosave and archive_path is not None:
+                logs.warn("Save archive is not implemented yet.")
+                # self.save()
+
+        # If there is a parent dataset, inherit its attributes
+        else:
+            if self.parent.is_processed():
+                for key in self.x.keys():
+                    self.xmeans[key] = self.parent.xmeans[key]
+                    self.xstds[key] = self.parent.xstds[key]
+                    self.xmins[key] = self.parent.xmins[key]
+                    self.xmaxs[key] = self.parent.xmaxs[key]
+                for key, value in self.y.items():
+                    self.ymeans[key] = self.parent.ymeans[key]
+                    self.ystds[key] = self.parent.ystds[key]
+                    self.ymins[key] = self.parent.ymins[key]
+                    self.ymaxs[key] = self.parent.ymaxs[key]
 
     # Save & load dataset in numpy archive ------------------------------------
 
@@ -152,7 +172,7 @@ class Dataset():
     def _load_raw(self, verbose=True):
         """Load data from raw data path"""
 
-        files = os.listdir(self.raw_path)[:100]
+        files = os.listdir(self.raw_path)[:10]
 
         self.x = {}
         self.y = {}
@@ -221,7 +241,7 @@ class Dataset():
         for field, data in self.y.items():
             res_y[field] = data[key]
         
-        return Dataset(name=f"{self.name} subset", x=res_x, y=res_y, process=False, silent=True)
+        return Dataset(name=f"{self.name} subset", x=res_x, y=res_y, parent=self)
     
     # Check if dataset element are dictionaries -------------------------------
 
@@ -289,45 +309,40 @@ class Dataset():
         return [i.shape[1:] for i in self.y.values()]
     
     # Get string representation -----------------------------------------------
-    
-    def __repr__(self) -> str:
-        res = f"{self.name} dataset, containing {len(self)} vectors."
-        
-        max_label_length = max(max([len(i) for i in self.xlabels]), max([len(i) for i in self.ylabels]))
-        res += "\nInput(s):"
-        for label, shape in zip(self.xlabels, self.xshapes):
-            res += f"\n - {label}: " + " "*(max_label_length - len(label)) + f"{shape}"
-        res += f"\nOutput(s):"
-        for label, shape in zip(self.ylabels, self.yshapes):
-            res += f"\n - {label}: " + " "*(max_label_length - len(label)) + f"{shape}"
-        return res
 
     def __str__(self) -> str:
         return self.__repr__()
     
-    def data_summary(self) -> str:
+    def __repr__(self) -> str:
         """Get printable-ready data summary"""
 
-        if not self.is_normalized():
-            return "Dataset not processed yet. No data summary available."
-
         max_label_length = max(max([len(i) for i in self.xlabels]), max([len(i) for i in self.ylabels]))
-        res = "Inputs:"
+        
+        res = f"{self.name} dataset, containing {len(self)} vectors."
+        if not self.is_processed():
+            res += " (Not processed, no statistics available)"
+        res += "\nInputs:"
 
         for key in self.xlabels:
-            res += f"\n - {key + ':' + ' ' * (max_label_length - len(key))}"\
-                + f" Mean: {(' ' if float(self.xmeans[key]) >= 0 else '')}{float(self.xmeans[key]):.2e}"\
-                + f" Std: {(' ' if float(self.xstds[key]) >= 0 else '')}{float(self.xstds[key]):.2e}"\
-                + f" Min: {(' ' if float(self.xmins[key]) >= 0 else '')}{float(self.xmins[key]):.2e}"\
-                + f" Max: {(' ' if float(self.xmaxs[key]) >= 0 else '')}{float(self.xmaxs[key]):.2e}"
+            res += f"\n - {key + ' ' * (max_label_length - len(key))}"
+
+            if self.is_processed():
+                res += f"   Mean: {(' ' if float(self.xmeans[key]) >= 0 else '')}{float(self.xmeans[key]):.2e}"
+                res += f"   Std: {(' ' if float(self.xstds[key]) >= 0 else '')}{float(self.xstds[key]):.2e}"
+                res += f"   Min: {(' ' if float(self.xmins[key]) >= 0 else '')}{float(self.xmins[key]):.2e}"
+                res += f"   Max: {(' ' if float(self.xmaxs[key]) >= 0 else '')}{float(self.xmaxs[key]):.2e}"
+            res += f"   Shape: {self.xshapes[self.xlabels.index(key)]}"
 
         res += "\nOutputs:"
         for key in self.ylabels:
-            res += f"\n - {key + ':' + ' ' * (max_label_length - len(key))}"\
-                + f" Mean: {(' ' if float(self.ymeans[key]) >= 0 else '')}{float(self.ymeans[key]):.2e}"\
-                + f" Std: {(' ' if float(self.ystds[key]) >= 0 else '')}{float(self.ystds[key]):.2e}"\
-                + f" Min: {(' ' if float(self.ymins[key]) >= 0 else '')}{float(self.ymins[key]):.2e}"\
-                + f" Max: {(' ' if float(self.ymaxs[key]) >= 0 else '')}{float(self.ymaxs[key]):.2e}"
+            res += f"\n - {key + ' ' * (max_label_length - len(key))}"
+
+            if self.is_processed():
+                res += f"   Mean: {(' ' if float(self.ymeans[key]) >= 0 else '')}{float(self.ymeans[key]):.2e}"
+                res += f"   Std: {(' ' if float(self.ystds[key]) >= 0 else '')}{float(self.ystds[key]):.2e}"
+                res += f"   Min: {(' ' if float(self.ymins[key]) >= 0 else '')}{float(self.ymins[key]):.2e}"
+                res += f"   Max: {(' ' if float(self.ymaxs[key]) >= 0 else '')}{float(self.ymaxs[key]):.2e}"
+            res += f"   Shape: {self.yshapes[self.ylabels.index(key)]}"
 
         return res
     
@@ -407,7 +422,8 @@ class Dataset():
             self.xstds[key] = np.std(value)
             self.xmins[key] = np.min(value)
             self.xmaxs[key] = np.max(value)
-            self.x[key] = (value - self.xmeans[key]) / self.xstds[key]
+            self.x[key] = (value + self.xmins[key]) / (self.xmaxs[key] - self.xmins[key])
+            # self.x[key] = (value - self.xmeans[key]) / self.xstds[key]
             bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
 
         for key, value in self.y.items():
@@ -415,20 +431,16 @@ class Dataset():
             self.ystds[key] = np.std(value)
             self.ymins[key] = np.min(value)
             self.ymaxs[key] = np.max(value)
-            self.y[key] = (value - self.ymeans[key]) / self.ystds[key]
+            self.y[key] = (value + self.ymins[key]) / (self.ymaxs[key] - self.ymins[key])
+            # self.y[key] = (value - self.ymeans[key]) / self.ystds[key]
             bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
 
         bar(len(self.x) + len(self.y))
 
-        self._normalized = True
-
         if verbose:
-            logs.info(f"Dataset {self.name} normalized ✅\n{self.data_summary()}")
+            logs.info(f"{self.name} dataset normalized ✅\n{self}")
 
         return self
-    
-    def is_normalized(self):
-        return self._normalized
     
     # Shuffle the dataset -----------------------------------------------------
 
@@ -442,10 +454,8 @@ class Dataset():
 
         self = self[idx]
 
-        self._shuffled = True
-
         if verbose:
-            logs.info(f"Dataset {self.name} shuffled ✅")
+            logs.info(f"{self.name} dataset shuffled ✅")
 
         return self
     
@@ -465,16 +475,47 @@ class Dataset():
         self.test = self[int(N*(1-self.test_frac)):]
         self.test.name = f"{self.name} test"
 
-        self._splitted = True
-        
         if verbose:
-            logs.info(f"Dataset {self.name} splitted ✅\n - Train set: {len(self.train)} vectors\n - Validation set: {len(self.val)} vectors\n - Test set: {len(self.test)} vectors")
+            logs.info(f"{self.name} dataset splitted ✅\n - Train set: {len(self.train)} vectors\n - Validation set: {len(self.val)} vectors\n - Test set: {len(self.test)} vectors")
 
         return self.train, self.val, self.test
     
-    def is_splitted(self):
-        return self._splitted
+    # Filter the dataset ------------------------------------------------------
+
+    def filter(self, xlabels:list[str]=None, ylabels:list[str]=None, verbose=False):
+        """Filter the dataset"""
+
+        if verbose:
+            logs.info(f"Filtering {self.name} dataset...")
     
+        if xlabels is not None:
+            xlabels = [label.replace(" ", "_") for label in xlabels]
+
+        filtered_x = {}
+        for label in self.xlabels:
+            if label.replace(" ", "_") in xlabels:
+                filtered_x[label] = self[label]
+
+        if ylabels is not None:
+            ylabels = [label.replace(" ", "_") for label in ylabels]
+
+        filtered_y = {}
+        for label in self.ylabels:
+            if label.replace(" ", "_") in ylabels:
+                filtered_y[label] = self[label]
+
+        dataset = Dataset(name=f"{self.name} filtered", x=filtered_x, y=filtered_y, parent=self)
+        if self.train is not None:
+            dataset.train = self.train.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
+        if self.val is not None:
+            dataset.val = self.val.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
+        if self.test is not None:
+            dataset.test = self.test.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
+
+        if verbose:
+            logs.info(f"{self.name} dataset filtered ✅\n{dataset}")
+
+        return dataset
 
 
     

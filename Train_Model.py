@@ -1,19 +1,17 @@
+print("\nImporting dependencies ---------------------------------------------------------\n")
 import numpy as np
 import pandas as pd
-from LRFutils import logs, progress, color
-from src.mltools import sysinfo
-from src.mltools.dataset import Dataset
+from LRFutils import logs, archive
 import os
 
+from src import mltools
 
-print("\nImporting tensorflow -----------------------------------------------------------\n")
 import tensorflow as tf
-mae = tf.keras.metrics.MeanAbsoluteError(name="MAE")
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
-from keras.models import Model
-import keras.backend as K
-mae = "mae"
-print("\nEnd importing tensorflow -------------------------------------------------------\n")
+print("\nEnd importing dependencies -----------------------------------------------------\n")
+
+archive_path = archive.new(verbose=True)
+print("")
 
 #==============================================================================
 # CONFIGURATION
@@ -25,15 +23,17 @@ raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
 epochs = 100
 batch_size=100
-loss = 'mean_squared_error'
-optimizer = 'SGD'
+loss = "mean_squared_error"
+optimizer = 'adam'
 metrics = [
-    mae,
+    tf.keras.metrics.MeanAbsoluteError(name="MAE"),
 ]
 
 #==============================================================================
 # LOAD DATASET
 #==============================================================================
+
+# Load one file (= vector) ----------------------------------------------------
 
 def load_file(path:str):
     """
@@ -44,6 +44,7 @@ def load_file(path:str):
     data = np.load(path)
 
     x = {
+        "Test":            np.linspace(0, 2*data["mass"], 100),
         "Dust wavelenght": np.array([250.,]), # [um]
         "Dust map" :       data["dust_image"].reshape(*data["dust_image"].shape, 1), # adding a channel dimension
         "CO velocity" :    data["CO_v"],
@@ -59,7 +60,15 @@ def load_file(path:str):
 
     return x, y
 
-dataset = Dataset(name="Pres stellar cores", loader=load_file, raw_path=raw_dataset_path, archive_path=dataset_archive)
+# Load dataset ----------------------------------------------------------------
+
+dataset = mltools.dataset.Dataset(
+    name="Pre stellar cores",
+    loader=load_file,
+    raw_path=raw_dataset_path,
+    archive_path=dataset_archive,
+    verbose=True
+)
 
 #==============================================================================
 # BUILD MODEL
@@ -71,33 +80,41 @@ def get_model(dataset):
 
     # Inputs ----------------------------------------------------------------------
 
-    inputs = {
-        "Dust map": Input(shape=sample_x["Dust map"].shape, name="Dust map"),
-        # "CO cube": Input(shape=sample_x["CO cube"].shape, name="CO cube"),
-    }
+    inputs = [
+        Input(shape=sample_x["Test"].shape, name="Test"),
+        # Input(shape=sample_x["CO cube"].shape, name="CO cube"),
+    ]
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Dust map"])
-    x = Dense(128, activation='relu')(x)
+    x = Flatten()(inputs[0])
 
     x_mass = Dense(32, activation='relu')(x)
-    # x_temp = Dense(32, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
-    outputs = {
-        "Total mass" : Dense(1, activation='relu', name="Total_mass")(x_mass),
-        # "Max temperature" : Dense(1, activation='relu', name="Max_temperature")(x_temp),
-    }
+    outputs = [
+        Dense(1, activation='sigmoid', name="Total_mass")(x_mass),
+    ]
 
-    return Model(inputs, outputs)
+    return mltools.model.Model(inputs, outputs)
 
 # Compile, show and train -----------------------------------------------------
 
-# model = get_model(dataset)
-# model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+logs.info("Building model...")
+model = get_model(dataset)
+model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+logs.info("Model built. ✅")
+
+model.print()
 
 #==============================================================================
 # TRAIN MODEL
 #==============================================================================
+
+logs.info("Training model...")
+history, trining_time = model.fit(dataset, epochs, batch_size, verbose=True, plot_loss=False)
+logs.info("Model trained. ✅")
+
+model.save(archive_path, history=history, training_time=trining_time)
+
