@@ -14,6 +14,9 @@ echo " " > logs/jupyter.log
 export http_proxy=http://11.0.0.254:3142/
 export https_proxy=http://11.0.0.254:3142/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+# export CUDA_HOME=/usr/local/cuda-11.4/
+# export PATH=$PATH:/usr/local/cuda-11.4/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/TensorRT-8.5.3.1/lib
 
 cd ~/M2-Prestel-state-from-obs-ML
 NSLOTS=$(cat $OAR_NODEFILE | wc -l)

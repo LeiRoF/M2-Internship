@@ -17,70 +17,178 @@ However, it must be consistent for a given field.
 """
 
 import numpy as np
-import type_enforced
-from typing import Union
+from typing import Union, Callable
 import os
-from LRFutils import progress
+from LRFutils import progress, logs
 from . import sysinfo
+import matplotlib.pyplot as plt
+from copy import deepcopy as copy
+from multiprocessing import Pool
 
-# @type_enforced.Enforcer
 class Dataset():
 
-    def __init__(self, name:str='Unammed', loader=None, raw_path:Union[str,None]=None, archive_path:Union[str,None]=None, x:Union[dict[np.ndarray],None]=None, y:Union[dict[np.ndarray],None]=None, autosave:bool=True, silent:bool=False) -> "Dataset":
-        """Create a user-friendly dataset"""
+    def __init__(self,
+                 name:str='Unammed',
+                 loader:"function"=None,
+                 raw_path:Union[str,None]=None,
+                 archive_path:Union[str,None]=None, 
+                 x:Union[dict[np.ndarray],None]=None,
+                 y:Union[dict[np.ndarray],None]=None, 
+                 val_frac:float=0.2,
+                 test_frac:float=0.1,
+                 autosave:bool=True,
+                 process=True,
+                 silent:bool=False
+                ) -> "Dataset":
+        """
+        Create a user-friendly dataset.
+        - loader & raw path allow to load raw data
+        - If archive_path is given and the file exist, it will ignore the raw path.
+        """
 
-        if loader is not None and loader is not callable:
-            raise TypeError('"loader" must be a callable object')
+        # Attribute definition
+        self.name:str = name
+        self.archive_path:str = archive_path
+        self.loader:function = loader
+        self.raw_path:str = raw_path
+        self.archive_path:str = archive_path
 
-        self.name = name
-        self.archive_path = archive_path
+        if 0 > val_frac + test_frac >= 1:
+            raise ValueError("val_frac, test_frac and the sum of both must be between 0 and 1.")
 
-        if loader is not None and raw_path is not None:
-            self.loader = loader
-            self.raw_path = raw_path
-            self.x, self.y = {}, {}
-            self.load(verbose = not silent)
+        self.val_frac:float = val_frac
+        self.test_frac:float = test_frac
 
-        elif x is not None and y is not None:
+        self.x:dict[np.ndarray] = None
+        self.xmeans:dict[float] = None
+        self.xstds:dict[float] = None
+
+        self.y:dict[np.ndarray] = None   
+        self.ymeans:dict[float] = None
+        self.ystds:dict[float] = None
+        
+        self._processed:bool = False
+        self._normalized:bool = False
+        self._shuffled:bool = False
+        self._splitted:bool = False
+
+        self.train:Dataset = None
+        self.val:Dataset = None
+        self.test:Dataset = None
+
+        # Data loading
+        if x or y:
+            if not (x and y):
+                raise ValueError("To create a dataset with already loaded data, both x and y must be given.")
+            if loader or raw_path or archive_path:
+                raise ValueError("Can't load data from multiple source at once. You must create a dataset using either x and y (already loaded data), either data pathes.")
+
             self.x = x
             self.y = y
-            Dataset._checkstruct(x, y)
-
+        
         else:
-            raise ValueError('Either "loader" and "raw_path" or "x" and "y" must be provided.')
-        
-        self.process()
-        
-        if autosave:
-            self.save()
 
-    def load(self, verbose=True):
-        """Load data from indicated data pathes"""
+            if archive_path and os.path.isfile(archive_path):
+                logs.warn("Archive loading is not implemented yet. Ingoring archive path.")   
+                # self.load_archive()
 
-        if os.path.isfile(self.archive_path):
-            if verbose:
-                print(f'Found dataset archive, loading it: {self.archive_path}...')
-            self.load_archive()
+            # else:
+            # {
+            #    if archive_path:
+            #        logs.info("No archive found. Loading raw data.")
+            if not (loader and raw_path):
+                raise ValueError("To create a dataset from raw data, both loader and raw_path must be given.")
+            if not callable(loader):
+                raise TypeError('"loader" must be a callable object')
+            if not os.path.isdir(raw_path):
+                raise ValueError(f"Raw data path {raw_path} is not a valid directory.")
+
+            self._load_raw(verbose=not silent)
+            # }
+
+        if process:
+            self.process(verbose=not silent)
         
-        if verbose:
-            print(f'No dataset archive found, loading raw data from: {self.raw_path}...')
-        self.load_raw()
+        if autosave and archive_path is not None:
+            logs.warn("Save archive is not implemented yet.")
+            # self.save()
 
-        return self.x, self.y
+    # Save & load dataset in numpy archive ------------------------------------
+
+    # TODO
+
+    # def _load_archive(self, verbose=True):
+    #     """Load data from archive data path"""
+
+    #     if verbose:
+    #         logs.info(f"Loading {self.name} dataset data from archive {self.archive_path}...")
+
+    #     archive = np.load(self.archive_path, allow_pickle=True)
+
+    #     for key, value in archive.items():
+    #         if key.startswith('x_'):
+    #             self.x[key[2:]] = value
+    #         elif key.startswith('y_'):
+    #             self.y[key[2:]] = value
+
+    #     if verbose:
+    #         logs.info(f"Loaded {self.name} dataset from archive ✅")
+
+    #     return self
+
+    # def save(self):
+    #     """Save the dataset to a numpy compressed file"""
+
+    #     kwargs = {}
+    #     for key, value in self.x.items():
+    #         kwargs[f'x_{key}'] = value
+    #     for key, value in self.y.items():
+    #         kwargs[f'y_{key}'] = value
+
+    #     np.savez_compressed(self.archive_path, **kwargs)
     
-    def load_raw(self, verbose=True):
+    # Load from raw data ------------------------------------------------------
+    
+    def _load_raw(self, verbose=True):
         """Load data from raw data path"""
 
-        bar = progress.Bar(len(os.listdir(self.raw_path)))
-        bar(0)
+        files = os.listdir(self.raw_path)[:100]
 
-        for i, item in os.listdir(self.raw_path):
-            x, y = self.loader(item)
-            self += (x, y)
-            bar(i+1, prefix=f'{sysinfo.get()}')
+        self.x = {}
+        self.y = {}
 
-        return x, y
+        if verbose:
+            logs.info(f"Loading {self.name}'s raw data from {self.raw_path}...")
+            bar = progress.Bar(len(files))
 
+        for i, item in enumerate(files):
+            x, y = self.loader(os.path.join(self.raw_path, item))
+
+            # Adding vector number dimension
+            for key, value in x.items():
+                if key not in self.x:
+                    self.x[key] = []
+                self.x[key].append(value)
+
+            for key, value in y.items():
+                if key not in self.y:
+                    self.y[key] =  []
+                self.y[key].append(value)
+
+            if verbose:
+                bar(i, prefix=f'{sysinfo.get()}')
+
+        for key, value in self.x.items():
+            self.x[key] = np.array(value)
+        
+        for key, value in self.y.items():
+            self.y[key] = np.array(value)        
+
+        if verbose:
+            bar(i+1)
+            logs.info(f"Loaded {self.name} dataset from raw data ✅\n{self}")
+
+    # Get vectors -------------------------------------------------------------
 
     def __getitem__(self, key):
         """Get elements of the dataset that match the key (can be either vector number of element label)"""
@@ -89,8 +197,8 @@ class Dataset():
         if not (isinstance(key, str)
                 or isinstance(key, int)
                 or isinstance(key, slice)
-                or isinstance(key, list[int])
-                or isinstance(key, np.ndarray[int])
+                or isinstance(key, list)
+                or isinstance(key, np.ndarray)
             ):
             raise TypeError('"key" must be a string, an integer, a slice, a list/numpy array of integers')
 
@@ -105,30 +213,47 @@ class Dataset():
             else:
                 return None
         
-        # Return the vector(s) that match the key
-        return self.x[key], self.y[key]
+        res_x = {}
+        res_y = {}
+
+        for field, data in self.x.items():
+            res_x[field] = data[key]
+        for field, data in self.y.items():
+            res_y[field] = data[key]
+        
+        return Dataset(name=f"{self.name} subset", x=res_x, y=res_y, process=False, silent=True)
     
+    # Check if dataset element are dictionaries -------------------------------
+
     @staticmethod
-    def _checkdict(x, y):
+    def _checkdict(**kwargs):
         """Check if x and y are dict"""
 
-        if not isinstance(x, dict[np.ndarray]) or not isinstance(y, dict[np.ndarray]):
-            raise TypeError('x and y must be dictiononary of numpy ndarrays. Dict elements are inputs/outputs data types and first dimension of ndarrays correspond to the vector number.')
+        for set, x in kwargs.items():
+            if not isinstance(x, dict):
+                raise TypeError(f"{set} set is not a dictionary.")
+            
+    # Check if the number of vectors is consistent between fields -------------
 
     @staticmethod
-    def _checkdim(x, y):
-        """Check length of x and y vectors"""
+    def _checksize(**kwargs):
+        """Check length of vectors"""
 
-        sample_value = list(x.values())[0]
-        if any([i.shape != sample_value.shape for i in  x.values()]) or any([i != x[0] for i in  y.values()]):
-            raise ValueError('\nAll x and y vectors of a dataset must have the same shape. The shape should be (nb_vectors, *data_shape, ).\n - "nb_vectors" must be the same on all the inputs and outputs dict keys.\n - "data_shape" must be consistent for a given dict key.\n')
+        for set, x in kwargs.items():
+            sample_key = list(x.keys())[0]
+            if any([i.shape[0] != x[sample_key].shape[0] for i in  x.values()]):
+                raise ValueError(f'\nSet {set} contain inconsistent number of vectors. Found {[i.shape[0] for i in x.values()]}. Maybe the first dimension of your data are not the vector number?\nCurrent element shapes: {[i.shape for i in x.values()]}')
+
+    # Check if the dataset is correctly structured ----------------------------
 
     @staticmethod
     def _checkstruct(x, y):
         """Overhaul check if the dataset is correctly structured"""
 
-        Dataset._checkdict(x, y)
-        Dataset._checkdim(x, y)
+        Dataset._checkdict(x=x, y=y)
+        Dataset._checksize(x=x, y=y)
+
+    # Get number of vectors in the dataset ------------------------------------
 
     def __len__(self):
         """Get the number of vector in the dataset"""
@@ -138,6 +263,8 @@ class Dataset():
     def size(self):
         """Get the number of vector in the dataset"""
         return len(self)
+    
+    # Get field labels --------------------------------------------------------
     
     @property
     def xlabels(self):
@@ -149,6 +276,8 @@ class Dataset():
         """Get the y labels"""
         return list(self.y.keys())
     
+    # Get field shapes --------------------------------------------------------
+    
     @property
     def xshapes(self):
         """Get the x shapes"""
@@ -159,47 +288,224 @@ class Dataset():
         """Get the y shapes"""
         return [i.shape[1:] for i in self.y.values()]
     
+    # Get string representation -----------------------------------------------
+    
     def __repr__(self) -> str:
         res = f"{self.name} dataset, containing {len(self)} vectors."
+        
+        max_label_length = max(max([len(i) for i in self.xlabels]), max([len(i) for i in self.ylabels]))
         res += "\nInput(s):"
         for label, shape in zip(self.xlabels, self.xshapes):
-            res += f"\n - {label} {shape}"
+            res += f"\n - {label}: " + " "*(max_label_length - len(label)) + f"{shape}"
         res += f"\nOutput(s):"
         for label, shape in zip(self.ylabels, self.yshapes):
-            res += f"\n - {label} {shape}"
+            res += f"\n - {label}: " + " "*(max_label_length - len(label)) + f"{shape}"
+        return res
 
     def __str__(self) -> str:
         return self.__repr__()
+    
+    def data_summary(self) -> str:
+        """Get printable-ready data summary"""
 
-    def add(self, x:np.ndarray, y:np.ndarray):
-        """Add data to the dataset"""
+        if not self.is_normalized():
+            return "Dataset not processed yet. No data summary available."
 
-        Dataset._checkstruct(x, y)
-        self.x.update(x)
-        self.y.update(y)
-        Dataset._checkstruct(self.x, self.y)
+        max_label_length = max(max([len(i) for i in self.xlabels]), max([len(i) for i in self.ylabels]))
+        res = "Inputs:"
 
-    def __add__(self, dataset:Union["Dataset", tuple[dict[np.ndarray], dict[np.ndarray]]]):
-        """Add data to the dataset"""
+        for key in self.xlabels:
+            res += f"\n - {key + ':' + ' ' * (max_label_length - len(key))}"\
+                + f" Mean: {(' ' if float(self.xmeans[key]) >= 0 else '')}{float(self.xmeans[key]):.2e}"\
+                + f" Std: {(' ' if float(self.xstds[key]) >= 0 else '')}{float(self.xstds[key]):.2e}"\
+                + f" Min: {(' ' if float(self.xmins[key]) >= 0 else '')}{float(self.xmins[key]):.2e}"\
+                + f" Max: {(' ' if float(self.xmaxs[key]) >= 0 else '')}{float(self.xmaxs[key]):.2e}"
 
-        if isinstance(dataset, Dataset):
-            self.merge(dataset)
-        else:
-            self.add(*dataset)
+        res += "\nOutputs:"
+        for key in self.ylabels:
+            res += f"\n - {key + ':' + ' ' * (max_label_length - len(key))}"\
+                + f" Mean: {(' ' if float(self.ymeans[key]) >= 0 else '')}{float(self.ymeans[key]):.2e}"\
+                + f" Std: {(' ' if float(self.ystds[key]) >= 0 else '')}{float(self.ystds[key]):.2e}"\
+                + f" Min: {(' ' if float(self.ymins[key]) >= 0 else '')}{float(self.ymins[key]):.2e}"\
+                + f" Max: {(' ' if float(self.ymaxs[key]) >= 0 else '')}{float(self.ymaxs[key]):.2e}"
 
-    def merge(self, dataset:"Dataset"):
-        """Merge two datasets"""
+        return res
+    
+    # Add vector to a dataset -------------------------------------------------
 
-        self.add(dataset.x, dataset.y)
+    # def add(self, x:np.ndarray, y:np.ndarray):
+    #     """Add data to the dataset"""
 
-    def save(self, path:str):
-        """Save the dataset to a numpy compressed file"""
+    #     for key, value in x.items():
+    #         if key in self.x:
+    #             self.x[key] = np.concatenate((self.x[key], value), axis=0)
+    #         else:
+    #             self.x[key] = value
+    #     for key, value in y.items():
+    #         if key in self.y:
+    #             self.y[key] = np.concatenate((self.y[key], value), axis=0)
+    #         else:
+    #             self.y[key] = value
 
-        np.savez_compressed(path, x=self.x, y=self.y)
+    #     Dataset._checkstruct(self.x, self.y)
 
-    @staticmethod
-    def load(path:str):
-        """Load a dataset from a numpy compressed file"""
+    #     return self
 
-        data = np.load(path)
-        return Dataset(x=data['x'], y=data['y'])
+    # def __add__(self, dataset:Union["Dataset", tuple[dict[np.ndarray], dict[np.ndarray]]]):
+    #     """Add data to the dataset"""
+
+    #     if isinstance(dataset, Dataset):
+    #         self.merge(dataset)
+    #     else:
+    #         self.add(*dataset)
+        
+    #     return self
+
+    # def merge(self, dataset:"Dataset"):
+    #     """Merge two datasets"""
+
+    #     self.add(dataset.x, dataset.y)
+
+    #     return self    
+
+    # Process the data (normalize and split) ----------------------------------
+
+    def process(self, verbose:bool=True) -> "Dataset":
+        """Process the dataset"""
+
+        self.normalize(verbose=verbose)
+        self.shuffle(verbose=verbose)
+        self.split(verbose=verbose)
+
+        self._processed = True
+
+        return self    
+    
+    def is_processed(self):
+        return self._processed
+    
+    # Normalization -----------------------------------------------------------
+
+    def normalize(self, verbose:bool=True):
+        """Normalize the dataset"""
+        if verbose:
+            logs.info(f"Normalizing {self.name}'s Dataset...")
+
+        self.xmeans = {}
+        self.xstds = {}
+        self.xmins = {}
+        self.xmaxs = {}
+        self.ymeans = {}
+        self.ystds = {}
+        self.ymins = {}
+        self.ymaxs = {}
+
+        bar = progress.Bar(len(self.x) + len(self.y))
+
+        for key, value in self.x.items():
+            self.xmeans[key] = np.mean(value)
+            self.xstds[key] = np.std(value)
+            self.xmins[key] = np.min(value)
+            self.xmaxs[key] = np.max(value)
+            self.x[key] = (value - self.xmeans[key]) / self.xstds[key]
+            bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
+
+        for key, value in self.y.items():
+            self.ymeans[key] = np.mean(value)
+            self.ystds[key] = np.std(value)
+            self.ymins[key] = np.min(value)
+            self.ymaxs[key] = np.max(value)
+            self.y[key] = (value - self.ymeans[key]) / self.ystds[key]
+            bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
+
+        bar(len(self.x) + len(self.y))
+
+        self._normalized = True
+
+        if verbose:
+            logs.info(f"Dataset {self.name} normalized ✅\n{self.data_summary()}")
+
+        return self
+    
+    def is_normalized(self):
+        return self._normalized
+    
+    # Shuffle the dataset -----------------------------------------------------
+
+    def shuffle(self, verbose:bool=True):
+        """Shuffle the dataset"""
+        
+        if verbose:
+            logs.info(f"Shuffling {self.name}'s Dataset...")
+
+        idx = np.random.permutation(len(self))
+
+        self = self[idx]
+
+        self._shuffled = True
+
+        if verbose:
+            logs.info(f"Dataset {self.name} shuffled ✅")
+
+        return self
+    
+    # Split the dataset -------------------------------------------------------
+
+    def split(self, verbose:bool=True):
+        """Split the dataset into train, validation and test sets"""
+
+        if verbose:
+            logs.info(f"Splitting {self.name}'s Dataset...")
+
+        N = len(self)
+        self.train = self[:int(N*(1-self.val_frac-self.test_frac))]
+        self.train.name = f"{self.name} train"
+        self.val = self[int(N*(1-self.val_frac-self.test_frac)):int(N*(1-self.test_frac))]
+        self.val.name = f"{self.name} val"
+        self.test = self[int(N*(1-self.test_frac)):]
+        self.test.name = f"{self.name} test"
+
+        self._splitted = True
+        
+        if verbose:
+            logs.info(f"Dataset {self.name} splitted ✅\n - Train set: {len(self.train)} vectors\n - Validation set: {len(self.val)} vectors\n - Test set: {len(self.test)} vectors")
+
+        return self.train, self.val, self.test
+    
+    def is_splitted(self):
+        return self._splitted
+    
+
+
+    
+
+    
+"""
+██╗   ██╗███╗   ██╗██╗████████╗    ████████╗███████╗███████╗████████╗███████╗
+██║   ██║████╗  ██║██║╚══██╔══╝    ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██╔════╝
+██║   ██║██╔██╗ ██║██║   ██║          ██║   █████╗  ███████╗   ██║   ███████╗
+██║   ██║██║╚██╗██║██║   ██║          ██║   ██╔══╝  ╚════██║   ██║   ╚════██║
+╚██████╔╝██║ ╚████║██║   ██║          ██║   ███████╗███████║   ██║   ███████║
+ ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝          ╚═╝   ╚══════╝╚══════╝   ╚═╝   ╚══════╝                                                                  
+"""
+
+import unittest
+
+class TestStringMethods(unittest.TestCase):
+
+    test_x = {
+        "x1": 0,
+        "x2": np.array([1, 2, 3, 4, 5]),
+        "x3": np.array([[[-1,-2,-3],[-4,-5,-6],[-7,-8,-9]],[[1,2,3],[4,5,6],[7,8,9]]]),
+    }
+
+    test_y = {
+        "y1": 0,
+        "y2": np.array([1, 2, 3, 4, 5]),
+        "y3": np.array([[[-1,-2,-3],[-4,-5,-6],[-7,-8,-9]],[[1,2,3],[4,5,6],[7,8,9]]]),
+    }
+
+    # TODO
+
+if __name__ == '__main__':
+    unittest.main()

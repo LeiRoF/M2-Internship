@@ -10,4 +10,3 @@ multiprocess
 astropy
 bokeh
 pandas
-type_enforced

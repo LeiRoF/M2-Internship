@@ -1,5 +1,6 @@
 import psutil
 import GPUtil
+import numpy as np
 
 def get():
     return f"CPU: {psutil.cpu_percent()}%"\
