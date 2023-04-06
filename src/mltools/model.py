@@ -7,6 +7,7 @@ from time import time
 import matplotlib.pyplot as plt
 from . import sysinfo
 import json
+import yaml
 
 class Model(tf.keras.models.Model):
 
@@ -65,7 +66,7 @@ class Model(tf.keras.models.Model):
         if history is not None:
             np.savez_compressed(f'{archive_path}/history.npz', **history.history, allow_pickle=True)
             
-            N = len(history.history)//2
+            N = len(history.history)
             N1 = int(np.sqrt(N))
             N2 = N1
             if N1*N2 < N:
@@ -86,7 +87,53 @@ class Model(tf.keras.models.Model):
                 axs[i].set_xlabel("Epoch")
                 axs[i].set_ylabel(key)
                 i += 1
-                fig.savefig(f"{archive_path}/history.png")
+
+                axs[i].plot(value, label=key)
+                axs[i].plot(history.history[f"val_{key}"], label=f"val_{key}")
+                axs[i].set_title(key + " in log log scale")
+                axs[i].legend()
+                axs[i].set_xlabel("Epoch")
+                axs[i].set_ylabel(key)
+                axs[i].set_yscale("log")
+                axs[i].set_xscale("log")    
+                i += 1
+
+            fig.savefig(f"{archive_path}/history.png")
+
+    def save_reference(self, reference_path, archive_path):
+
+        if not os.path.isdir(os.path.join(reference_path, "output")):
+            os.makedirs(os.path.join(reference_path, "output"))
+        if not os.path.isdir(os.path.join(reference_path, "problem")):
+            os.makedirs(os.path.join(reference_path, "problem"))
+
+        try:
+            with open(os.path.join(reference_path, "model_list.yml"), "r") as f:
+                models = yaml.safe_load(f)
+
+            last_model = int(list(models.keys())[-1], 16) # get last model id from hexa
+            new_model = last_model + 1
+            new_model = hex(new_model)[2:] # convert to hexa
+            new_model = "0"*(4-len(new_model)) + new_model # pad with 0 to reach 4 hexa digits
+
+        except FileNotFoundError:
+            models = {}
+            new_model = "0000"
+
+        models[new_model] = archive_path
+
+        with open(os.path.join(reference_path, "model_list.yml"), "w") as f:
+            yaml.dump(models, f)
+
+        for output in self.output_names:
+            with open(os.path.join(reference_path, f"output/{output}.yml"), "a") as f:
+                f.write(f"'{new_model}': {archive_path}\n")
+
+        problem = ",".join(self.input_names) + "---" + ",".join(self.output_names)
+        with open(os.path.join(reference_path, f"problem/{problem}.yml"), "a") as f:
+            f.write(f"'{new_model}': {archive_path}\n")
+
+        return new_model
 
     def fit(self, epochs, batch_size, verbose=True, plot_loss=False):
 

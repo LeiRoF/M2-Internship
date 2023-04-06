@@ -1,8 +1,11 @@
 print("\nImporting dependencies ---------------------------------------------------------\n")
+from time import time
+program_start_time = time()
 import numpy as np
 import pandas as pd
 from LRFutils import logs, archive
 import os
+import yaml
 
 from src import mltools
 
@@ -27,7 +30,8 @@ batch_size=100
 loss = "mean_squared_error"
 optimizer = 'adam'
 metrics = [
-    tf.keras.metrics.MeanAbsoluteError(name="MAE"),
+    # tf.keras.metrics.MeanAbsoluteError(name="Total_mass_MAE"),
+    tf.keras.metrics.MeanAbsoluteError(name="Max_temperature_MAE"),
 ]
 
 #==============================================================================
@@ -36,16 +40,23 @@ metrics = [
 
 # Load one file (= vector) ----------------------------------------------------
 
+cpt = -1
+
 def load_file(path:str):
     """
     Load a dataset vector from a file.
     Vector is a dictionary of numpy arrays that represent your data.
     """
 
+    global cpt
+
+    cpt += 1
+    if not cpt%10 == 0:
+        return
+
     data = np.load(path)
 
     x = {
-        "Test":            np.linspace(0, 2*data["mass"], 3),
         "Dust_wavelenght": np.array([250.,]), # [um]
         "Dust_map" :       data["dust_image"].reshape(*data["dust_image"].shape, 1), # adding a channel dimension
         "CO_velocity" :    data["CO_v"],
@@ -82,19 +93,20 @@ def get_model(dataset):
     # Inputs ----------------------------------------------------------------------
 
     inputs = {
-        "Test": Input(shape=sample_x["Test"].shape, name="Test"),
+        "Dust_map": Input(shape=sample_x["Dust_map"].shape, name="Dust_map"),
     }
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Test"])
+    x = Flatten()(inputs["Dust_map"])
 
     x_mass = Dense(32, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x_mass),
+        # "Total_mass": Dense(1, activation='relu', name="Total_mass")(x_mass),
+        "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x_mass),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -114,7 +126,33 @@ logs.info("Training model...")
 history, trining_time = model.fit(epochs, batch_size, verbose=True, plot_loss=False)
 logs.info("Model trained. ✅")
 
-model.save(archive_path, history=history, training_time=trining_time)
+#==============================================================================
+# SAVE RESULTS
+#==============================================================================
 
+# Save model reference
+new_model = model.save_reference("data/model_comparison", archive_path)
 
-logs.info(f"Done. ✅\n -> Results dans be found in {archive_path} folder.")
+# Convert metrics to strings
+for i, metric in enumerate(metrics):
+    if not isinstance(metric, str):
+        metrics[i] = metric.name
+
+# Save model details
+model.save(
+    archive_path,
+    history=history,
+    training_time=trining_time,
+    valid_frac=valid_frac,
+    test_frac=test_frac,
+    epochs=epochs,
+    batch_size=batch_size,
+    loss=loss,
+    optimizer=optimizer,
+    metrics=metrics,
+    model_id=new_model,
+)
+
+# End of program
+spent_time = time() - program_start_time
+logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_time%60:.2f} seconds \n -> Results dans be found in {archive_path} folder.")

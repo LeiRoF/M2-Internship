@@ -133,6 +133,9 @@ class Dataset():
                     self.ymins[key] = self.parent.ymins[key]
                     self.ymaxs[key] = self.parent.ymaxs[key]
 
+        if verbose:
+            logs.info(f"Dataset created ✅\n{self}")
+
     # Save & load dataset in numpy archive ------------------------------------
 
     # TODO
@@ -182,7 +185,11 @@ class Dataset():
             bar = progress.Bar(len(files))
 
         for i, item in enumerate(files):
-            x, y = self.loader(os.path.join(self.raw_path, item))
+
+            try:
+                x, y = self.loader(os.path.join(self.raw_path, item))
+            except:
+                continue
 
             # Adding vector number dimension
             for key, value in x.items():
@@ -441,7 +448,7 @@ class Dataset():
         bar(len(self.x) + len(self.y))
 
         if verbose:
-            logs.info(f"{self.name} dataset normalized ✅\n{self}")
+            logs.info(f"{self.name} dataset normalized ✅")
 
         return self
     
