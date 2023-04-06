@@ -2,15 +2,21 @@ import os
 import numpy as np
 import tensorflow as tf
 import keras.backend as K
-from LRFutils import progress
+from LRFutils import progress, logs
 from time import time
 import matplotlib.pyplot as plt
 from . import sysinfo
+import json
 
 class Model(tf.keras.models.Model):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, dataset, verbose, **kwargs):
         super().__init__(*args, **kwargs)
+        self.dataset = dataset.filter(self.input_names, self.output_names)
+
+        if verbose:
+            self.print()
+            print(self.dataset)
 
     def summary(self):
         # Store and print model summary
@@ -43,19 +49,46 @@ class Model(tf.keras.models.Model):
             show_layer_activations=True,
         )
 
-    def save(self, archive_path, history=None):
-        super().save(os.path.join(archive_path,"model.h5"))
-        with open(os.path.join(archive_path, "model_summary.txt"), "w") as text_file:
-            text_file.write(self.summary())
-            self.plot(archive_path)
+    def save(self, archive_path, history=None, **kwargs):
+        try:
+            super().save(os.path.join(archive_path,"model.h5"))
+        except OSError as e:
+            logs.warn(f"Could not save model due to the following OSError:{e}")
+        self.plot(archive_path)
 
+        summary = self.summary().split("\n")
+
+        dic = dict(summary=summary, **kwargs)
+
+        json.dump(dic, open(f'{archive_path}/details.json', 'w'), indent=4)
 
         if history is not None:
             np.savez_compressed(f'{archive_path}/history.npz', **history.history, allow_pickle=True)
+            
+            N = len(history.history)//2
+            N1 = int(np.sqrt(N))
+            N2 = N1
+            if N1*N2 < N:
+                N2 += 1
+            if N1*N2 < N:
+                N1 += 1
 
-    def fit(self, dataset, epochs, batch_size, verbose=True, plot_loss=False):
+            fig, axs = plt.subplots(N1, N2, figsize=(N2*5, N1*5))
+            axs = axs.flatten()
+            i = 0
+            for key, value in history.history.items():
+                if key.startswith("val_"):
+                    continue
+                axs[i].plot(value, label=key)
+                axs[i].plot(history.history[f"val_{key}"], label=f"val_{key}")
+                axs[i].set_title(key)
+                axs[i].legend()
+                axs[i].set_xlabel("Epoch")
+                axs[i].set_ylabel(key)
+                i += 1
+                fig.savefig(f"{archive_path}/history.png")
 
-        dataset = dataset.filter(self.input_names, self.output_names)
+    def fit(self, epochs, batch_size, verbose=True, plot_loss=False):
 
         class CustomCallback(tf.keras.callbacks.Callback):
             def __init__(self):
@@ -81,21 +114,14 @@ class Model(tf.keras.models.Model):
     
         start_time = time()
 
-        print(dataset.train.x.keys())
-        print(dataset.train.y.keys())
-        print(dataset.val.x.keys())
-        print(dataset.val.y.keys())
-        print(len(dataset.train))
-        print(len(dataset.val))
-
-        history = super().fit(dataset.train.x, dataset.train.y,
+        history = super().fit(self.dataset.train.x, self.dataset.train.y,
                             epochs=epochs,
                             batch_size=batch_size, 
-                            validation_data=(dataset.val.x, dataset.val.x), 
+                            validation_data=(self.dataset.val.x, self.dataset.val.y), 
                             verbose=0,
                             callbacks=[CustomCallback()],
-                            workers=10,
-                            use_multiprocessing=True
+                            # workers=10,
+                            # use_multiprocessing=True
                         )
 
         training_time = time() - start_time

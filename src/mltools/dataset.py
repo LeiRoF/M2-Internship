@@ -73,11 +73,11 @@ class Dataset():
         self.ymins:dict[float] = {}
         self.ymaxs:dict[float] = {}
         
-        self._processed:bool = False if not parent else self.parent._processed
+        self._processed:bool = False if not parent else self.parent.is_processed()
 
-        self.train:Dataset = None if not parent else self.parent.train
-        self.val:Dataset = None if not parent else self.parent.val
-        self.test:Dataset = None if not parent else self.parent.test
+        self.train:Dataset = None
+        self.val:Dataset = None
+        self.test:Dataset = None
 
         # Data loading
         if x or y:
@@ -172,7 +172,7 @@ class Dataset():
     def _load_raw(self, verbose=True):
         """Load data from raw data path"""
 
-        files = os.listdir(self.raw_path)[:10]
+        files = os.listdir(self.raw_path)
 
         self.x = {}
         self.y = {}
@@ -321,6 +321,9 @@ class Dataset():
         res = f"{self.name} dataset, containing {len(self)} vectors."
         if not self.is_processed():
             res += " (Not processed, no statistics available)"
+        if self.train is not None and self.val is not None and self.test is not None:
+            res += f"\nSubsets: Train: {len(self.train)} vectors, Val: {len(self.val)} vectors, Test: {len(self.test)} vectors."
+        
         res += "\nInputs:"
 
         for key in self.xlabels:
@@ -489,19 +492,19 @@ class Dataset():
             logs.info(f"Filtering {self.name} dataset...")
     
         if xlabels is not None:
-            xlabels = [label.replace(" ", "_") for label in xlabels]
+            xlabels = [label.lower().replace(" ", "_") for label in xlabels]
 
         filtered_x = {}
         for label in self.xlabels:
-            if label.replace(" ", "_") in xlabels:
+            if label.lower().replace(" ", "_") in xlabels:
                 filtered_x[label] = self[label]
 
         if ylabels is not None:
-            ylabels = [label.replace(" ", "_") for label in ylabels]
+            ylabels = [label.lower().replace(" ", "_") for label in ylabels]
 
         filtered_y = {}
         for label in self.ylabels:
-            if label.replace(" ", "_") in ylabels:
+            if label.lower().replace(" ", "_") in ylabels:
                 filtered_y[label] = self[label]
 
         dataset = Dataset(name=f"{self.name} filtered", x=filtered_x, y=filtered_y, parent=self)
