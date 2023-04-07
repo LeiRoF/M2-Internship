@@ -21,17 +21,17 @@ print("")
 # CONFIGURATION
 #==============================================================================
 
-valid_frac = 0.2
+val_frac = 0.2
 test_frac  = 0.1
 raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
 epochs = 1000
-batch_size=100
+batch_size=10
 loss = "mean_squared_error"
 optimizer = 'adam'
 metrics = [
-    # tf.keras.metrics.MeanAbsoluteError(name="Total_mass_MAE"),
-    tf.keras.metrics.MeanAbsoluteError(name="Max_temperature_MAE"),
+    tf.keras.metrics.MeanAbsoluteError(name="Total_mass_MAE"),
+    # tf.keras.metrics.MeanAbsoluteError(name="Max_temperature_MAE"),
 ]
 
 #==============================================================================
@@ -79,7 +79,9 @@ dataset = mltools.dataset.Dataset(
     loader=load_file,
     raw_path=raw_dataset_path,
     archive_path=dataset_archive,
-    verbose=True
+    val_frac=val_frac,
+    test_frac=test_frac,
+    verbose=True,
 )
 
 #==============================================================================
@@ -105,8 +107,8 @@ def get_model(dataset):
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        # "Total_mass": Dense(1, activation='relu', name="Total_mass")(x_mass),
-        "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x_mass),
+        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x_mass),
+        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x_mass),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -143,7 +145,7 @@ model.save(
     archive_path,
     history=history,
     training_time=trining_time,
-    valid_frac=valid_frac,
+    val_frac=val_frac,
     test_frac=test_frac,
     epochs=epochs,
     batch_size=batch_size,
@@ -156,3 +158,19 @@ model.save(
 # End of program
 spent_time = time() - program_start_time
 logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_time%60:.2f} seconds \n -> Results dans be found in {archive_path} folder.")
+
+#==============================================================================
+# PREDICTION
+#==============================================================================
+
+print("\n\nPREDICTION TIME!\n\n")
+
+y_prediction = model.predict(model.dataset.test.x)
+
+for key, value in y_prediction.items():
+    print(f"   {key} :")
+    for i, prediction in enumerate(value):
+        p = prediction.flatten()[0] * model.dataset.ystds[key] + model.dataset.ymeans[key]
+        y = dataset.test.y[key][i].flatten()[0] * dataset.ystds[key] + dataset.ymeans[key]
+        r = dataset.ystds[key]
+        print(f"      {i} : Predicted: {p:.2e}, Expected: {y:.2e}, Error: {(p-y):.2e} ({np.abs(p-y)/r:.2f} σ)")

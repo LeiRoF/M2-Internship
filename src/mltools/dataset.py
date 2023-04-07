@@ -213,7 +213,7 @@ class Dataset():
 
         if verbose:
             bar(i+1)
-            logs.info(f"Loaded {self.name} dataset from raw data ✅\n{self}")
+            logs.info(f"Loaded {self.name} dataset from raw data ✅")
 
     # Get vectors -------------------------------------------------------------
 

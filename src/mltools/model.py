@@ -90,7 +90,7 @@ class Model(tf.keras.models.Model):
 
                 axs[i].plot(value, label=key)
                 axs[i].plot(history.history[f"val_{key}"], label=f"val_{key}")
-                axs[i].set_title(key + " in log log scale")
+                axs[i].set_title(key + " in log:log scale")
                 axs[i].legend()
                 axs[i].set_xlabel("Epoch")
                 axs[i].set_ylabel(key)
