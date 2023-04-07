@@ -399,7 +399,7 @@ class Dataset():
         """Process the dataset"""
 
         self.normalize(verbose=verbose)
-        self.shuffle(verbose=verbose)
+        self.shuffle(uniform_tests_indices=True,verbose=verbose)
         self.split(verbose=verbose)
 
         self._processed = True
@@ -454,14 +454,41 @@ class Dataset():
     
     # Shuffle the dataset -----------------------------------------------------
 
-    def shuffle(self, verbose:bool=True):
+    def shuffle(self, uniform_tests_indices=False, verbose:bool=True):
         """Shuffle the dataset"""
-        
+
         if verbose:
             logs.info(f"Shuffling {self.name}'s Dataset...")
 
+        # Get random indices
         idx = np.random.permutation(len(self))
+        print(idx.shape)
+        print(idx)
 
+        if uniform_tests_indices:
+            # Follow issue #7
+
+            indices = [0] # Extract first element of the dataset 
+
+            N = len(self)
+            N2 = N - 2
+            T = int(self.test_frac * N)
+            T2 = T - 2
+
+            for i in range(T2):
+                indices.append(int((i+1) * N2 / (T2 + 1))+1) # Extract all middle elements
+            
+            indices.append(N-1) # Extract last element of the dataset 
+            indices=np.array(indices)
+
+            # Extract the indices of the test set
+            for i in indices:
+                idx = np.delete(idx, np.where(idx == i))
+
+            # Put  the indices of the test set at the end (where the test set is taken from)
+            idx = np.concatenate((idx , indices), axis=0)
+
+        # Shuffle the dataset using the randomized indices
         self = self[idx]
 
         if verbose:

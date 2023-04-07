@@ -2,7 +2,6 @@ print("\nImporting dependencies ------------------------------------------------
 from time import time
 program_start_time = time()
 import numpy as np
-import pandas as pd
 from LRFutils import logs, archive
 import os
 import yaml
