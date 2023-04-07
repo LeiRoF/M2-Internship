@@ -5,6 +5,7 @@ import numpy as np
 from LRFutils import logs, archive
 import os
 import yaml
+import json
 
 from src import mltools
 
@@ -24,7 +25,7 @@ val_frac = 0.2
 test_frac  = 0.1
 raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 1000
+epochs = 100
 batch_size=10
 loss = "mean_squared_error"
 optimizer = 'adam'
@@ -127,9 +128,7 @@ logs.info("Model built. ✅")
 # TRAIN MODEL
 #==============================================================================
 
-logs.info("Training model...")
-history, trining_time = model.fit(epochs, batch_size, verbose=True, plot_loss=False)
-logs.info("Model trained. ✅")
+history, trining_time, scores = model.fit(epochs, batch_size, verbose=True, plot_loss=False)
 
 #==============================================================================
 # SAVE RESULTS
@@ -156,6 +155,8 @@ model.save(
     optimizer=optimizer,
     metrics=metrics,
     model_id=new_model,
+    dataset=str(model.dataset).split("\n"),
+    scores=scores,
 )
 
 # End of program
@@ -167,13 +168,4 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 #==============================================================================
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
-
-y_prediction = model.predict(model.dataset.test.x)
-
-for key, value in y_prediction.items():
-    print(f"   {key} :")
-    for i, prediction in enumerate(value):
-        p = prediction.flatten()[0] * model.dataset.ystds[key] + model.dataset.ymeans[key]
-        y = dataset.test.y[key][i].flatten()[0] * dataset.ystds[key] + dataset.ymeans[key]
-        r = dataset.ystds[key]
-        print(f"      {i} : Predicted: {p:.2e}, Expected: {y:.2e}, Error: {(p-y):.2e} ({np.abs(p-y)/r:.2f} σ)")
+model.predict(model.dataset.test.x, display=True, save_as=f"{archive_path}/predictions")

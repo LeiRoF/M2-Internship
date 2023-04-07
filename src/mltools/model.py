@@ -33,10 +33,6 @@ class Model(tf.keras.models.Model):
         trainable_count = np.sum([K.count_params(w) for w in self.trainable_weights])
         non_trainable_count = np.sum([K.count_params(w) for w in self.non_trainable_weights])
 
-        print('Total params: {:,}'.format(trainable_count + non_trainable_count))
-        print('Trainable params: {:,}'.format(trainable_count))
-        print('Non-trainable params: {:,}'.format(non_trainable_count))
-
         return tf.keras.utils.plot_model(
             self,
             to_file=f"{archive_path}/model.png",
@@ -136,6 +132,8 @@ class Model(tf.keras.models.Model):
         return new_model
 
     def fit(self, epochs, batch_size, verbose=True, plot_loss=False):
+        
+        logs.info("Training model...")
 
         class CustomCallback(tf.keras.callbacks.Callback):
             def __init__(self):
@@ -150,7 +148,7 @@ class Model(tf.keras.models.Model):
                     self.loss_curve, = self.ax.plot(self.loss_value, self.loss_epoch, 'r-')
 
             def on_epoch_end(self, epoch, logs=None):
-                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.2e} | {sysinfo.get()}")
+                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.5f} | {sysinfo.get()}")
                 if plot_loss and ((time() - self.last_update) > 1):
                     self.loss_value.append(logs['loss'])
                     self.loss_epoch.append(epoch)
@@ -173,4 +171,43 @@ class Model(tf.keras.models.Model):
 
         training_time = time() - start_time
 
-        return history, training_time
+        scores = self.evaluate(self.dataset.test.x, self.dataset.test.y, verbose=0)
+
+        logs.info("Model trained. ✅")
+
+        return history, training_time, scores
+    
+    def predict(self, x, *args, display=False, save_as=None, **kwargs):
+        y_prediction = super().predict(x, **kwargs)
+
+        y_predicted = {}
+        y_expected = {}
+
+        for key, value in y_prediction.items():
+            y_predicted[key] = []
+            y_expected[key] = []
+
+            if display:
+                print(f"   {key} :")
+            for i, prediction in enumerate(value):
+                p = prediction.flatten()[0] * self.dataset.ystds[key] + self.dataset.ymeans[key]
+                y_predicted[key].append(p)
+
+                y = self.dataset.test.y[key][i].flatten()[0] * self.dataset.ystds[key] + self.dataset.ymeans[key]
+                y_expected[key].append(y)
+
+                if display:
+                    r = self.dataset.ystds[key]
+                    print(f"      {i} : Predicted: {p:.2e}, Expected: {y:.2e}, Error: {(p-y):.2e} ({np.abs(p-y)/r:.2f} σ)")
+
+        # Save predictions
+        if save_as is not None:
+            np.savez_compressed(save_as,
+                prediction=y_predicted,
+                expected=y_expected,
+                mean=self.dataset.ymeans,
+                sigma=self.dataset.ystds,
+            )
+
+        return y_predicted, y_expected
+

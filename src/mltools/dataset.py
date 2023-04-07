@@ -462,8 +462,6 @@ class Dataset():
 
         # Get random indices
         idx = np.random.permutation(len(self))
-        print(idx.shape)
-        print(idx)
 
         if uniform_tests_indices:
             # Follow issue #7
