@@ -102,13 +102,17 @@ def get_model(dataset):
 
     x = Flatten()(inputs["Dust_map"])
 
-    x_mass = Dense(32, activation='relu')(x)
+    x = Dropout(0.5)(x)
+
+    x = Dense(32, activation='relu')(x)
+
+    x = Dropout(0.5)(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x_mass),
-        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x_mass),
+        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
+        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -163,7 +167,7 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 # PREDICTION
 #==============================================================================
 
-print("\n\nPREDICTION TIME!\n\n")
+print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
 y_prediction = model.predict(model.dataset.test.x)
 

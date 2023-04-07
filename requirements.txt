@@ -2,7 +2,7 @@
 LRFutils   == 0.1.2
 numpy
 matplotlib
-tensorflow==2.12.0
+tensorflow==2.10.0
 tensorrt
 scipy
 pyvtk
