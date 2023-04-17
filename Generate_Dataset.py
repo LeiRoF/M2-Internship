@@ -31,14 +31,23 @@ T = 10 * u.K # Kinetic temperature [K]
 CO_fractional_abundance  = 1e-4 # particle / hydrogen atom
 N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 
-n_List = np.linspace(1e3, 1e6, 10, endpoint=True) * u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
-# n_List = np.array([1e6])
-r_List = np.linspace(0.02, 1.0, 10, endpoint=True) * u.pc # Core radius from 0.02 to 1 parsec
-# r_List = np.array([1.0])
-p_List = np.flip(np.linspace(1.5,  2.5, 10, endpoint=True)) # Sharpness of the plummer profile from 1.5 to 2.5
-# p_List = np.array([1.5])
+n_List, dn = np.linspace(1e3, 1e6, 10, endpoint=True, retstep=True)
+n_List *= u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
+dn *= u.cm**-3
 
-debug = True
+r_List, dr = np.linspace(0.02, 1.0, 10, endpoint=True, retstep=True)
+r_List *= u.pc # Core radius from 0.02 to 1 parsec
+dr *= u.pc
+
+p_List, dp = np.linspace(1.5,  2.5, 10, endpoint=True, retstep=True) # Sharpness of the plummer profile from 1.5 to 2.5
+p_list = np.flip(p_List) * u.dimensionless_unscaled
+dp *= u.dimensionless_unscaled
+
+print(dn)
+print(dr)
+print(dp)
+
+debug = False
 
 # Environment -----------------------------------------------------------------
 
@@ -284,6 +293,10 @@ for i, n_H in enumerate(n_List):
     for j, r in enumerate(r_List): 
         for k, p in enumerate(p_List):
 
+            n_H = n_H + np.random.rand() * dn
+            r = r + np.random.rand() * dr
+            p = p + np.random.rand() * dp
+
             # Updating progress bar
             n_simu = i*len(r_List)*len(p_List) + j*len(p_List) + k
             bar(n_simu)
@@ -308,7 +321,7 @@ for i, n_H in enumerate(n_List):
 
             mass = mass.to(u.Msun)
 
-            simu_name = f"data/dataset/{n_simu}_n={n_H.value:.2f}_r={r.value:.2f}_p={p:.2f}_m={mass.value:.2f}"
+            simu_name = f"data/dataset/{n_simu}_n={n_H.value:.2f}_r={r.value:.2f}_p={p.value:.2f}_m={mass.value:.2f}"
 
             # Avoid recomputing done simulations
             if os.path.isfile(f"{simu_name}.npz"):
@@ -348,7 +361,11 @@ for i, n_H in enumerate(n_List):
             # plt.imshow(dust_image)
             # cbar = plt.colorbar()
             # cbar.set_label(r"Surface brightness (MJy . sr$^{-1}$)")
-            # plt.savefig(f"data/dataset/{n_simu}_n={n_H:.2f}_r={r:.2f}_p={p:.2f}_m={float(mass):.2f}_Dust-map.png", dpi=300)
+            # plt.savefig(f"data/dataset/{n_simu}_"
+            #             + f"n={n_H.value:.2f}_"
+            #             + f"r={r.value:.2f}_"
+            #             + f"p={p:.2f}_"
+            #             + f"m={float(mass.value):.2f}_Dust-map.png", dpi=300)
             # plt.close()
 
             np.savez_compressed(f"{simu_name}.npz",
@@ -358,11 +375,11 @@ for i, n_H in enumerate(n_List):
                 N2H_v = N2H_v,
                 dust_image = dust_image,
                 dust_temperature = T,
-                density_cube = density_cube,
-                n_H = n_H,
-                r = r,
-                p = p,
-                mass = mass
+                density_cube = density_cube.value,
+                n_H = n_H.value,
+                r = r.value,
+                p = p.value,
+                mass = mass.value
             )
 
             if debug:
@@ -375,4 +392,4 @@ for i, n_H in enumerate(n_List):
         break
             
 # End progress bar
-bar(len(n_List) * len(r_List) * len(p_List))           
+bar(len(n_List) * len(r_List) * len(p_List))

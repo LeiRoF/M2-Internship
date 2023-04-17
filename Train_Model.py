@@ -169,3 +169,28 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 model.predict(model.dataset.test.x, display=True, save_as=f"{archive_path}/predictions")
+
+
+
+
+
+
+
+
+# Verification que model.dataset.test soit bien composé de vecteurs uniformément répartis dans le dataset
+
+# print("\nBefore:\n")
+
+# print(dataset)
+
+# print("\nAfter:\n")
+
+# x = dataset.x
+# for key, value in x.items():
+#     x[key] = value * dataset.xstds[key] + dataset.xmeans[key]
+
+# y = dataset.y
+# for key, value in y.items():
+#     y[key] = value * dataset.ystds[key] + dataset.ymeans[key]
+
+# mltools.dataset.Dataset(name="Verification", x=x, y=y, verbose=True, process=True)
