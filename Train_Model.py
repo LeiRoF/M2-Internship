@@ -6,10 +6,12 @@ from LRFutils import logs, archive
 import os
 import yaml
 import json
+import matplotlib.pyplot as plt
 
 from src import mltools
 
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
 print("\nEnd importing dependencies -----------------------------------------------------\n")
@@ -23,12 +25,12 @@ print("")
 
 val_frac = 0.2
 test_frac  = 0.1
-raw_dataset_path = "data/dataset" # path to the raw dataset
+raw_dataset_path = "data/dataset_old" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 100
+epochs = 1000
 batch_size=10
 loss = "mean_squared_error"
-optimizer = 'adam'
+optimizer = 'SGD'
 metrics = [
     tf.keras.metrics.MeanAbsoluteError(name="Total_mass_MAE"),
     # tf.keras.metrics.MeanAbsoluteError(name="Max_temperature_MAE"),
@@ -41,6 +43,8 @@ metrics = [
 # Load one file (= vector) ----------------------------------------------------
 
 cpt = -1
+
+mass = []
 
 def load_file(path:str):
     """
@@ -56,21 +60,24 @@ def load_file(path:str):
 
     data = np.load(path)
 
-    x = {
-        "Dust_wavelenght": np.array([250.,]), # [um]
-        "Dust_map" :       data["dust_image"].reshape(*data["dust_image"].shape, 1), # adding a channel dimension
-        "CO_velocity" :    data["CO_v"],
-        "CO_cube" :        data["CO_cube"].reshape(*data["CO_cube"].shape, 1), # adding a channel dimension
-        "N2H+_velocity" :  data["N2H_v"],
-        "N2H_cube" :       data["N2H_cube"].reshape(*data["N2H_cube"].shape, 1), # adding a channel dimension
-    }
+    vector = mltools.dataset.Vector(
 
-    y = {
-        "Total_mass" :      np.array([data["mass"]]),
-        "Max_temperature" : np.array([np.amax(data["dust_temperature"])]),
-    }
+        # x
+        Dust_wavelenght = np.array([250.,]), # [um]
+        Dust_map =        data["dust_image"].reshape(*data["dust_image"].shape, 1), # adding a channel dimension
+        CO_velocity =     data["CO_v"],
+        CO_cube =         data["CO_cube"].reshape(*data["CO_cube"].shape, 1), # adding a channel dimension
+        N2H_velocity =    data["N2H_v"],
+        N2H_cube =        data["N2H_cube"].reshape(*data["N2H_cube"].shape, 1), # adding a channel dimension
 
-    return x, y
+        # y
+        Total_mass =      np.array([data["mass"]]),
+        Max_temperature = np.array([np.amax(data["dust_temperature"])]),
+    )
+
+    mass.append(data["mass"])
+
+    return vector
 
 # Load dataset ----------------------------------------------------------------
 
@@ -84,18 +91,28 @@ dataset = mltools.dataset.Dataset(
     verbose=True,
 )
 
+# plt.figure()
+# plt.hist(mass, bins=100)
+# plt.savefig(f"Total_mass_before.png")
+
+# plt.figure()
+# plt.hist(dataset.denormalize("Total_mass", dataset.data["Total_mass"]), bins=100)
+# plt.savefig(f"Total_mass_after.png")
+
+# dataset.print_few_vectors()
+
 #==============================================================================
 # BUILD MODEL
 #==============================================================================
 
 def get_model(dataset):
 
-    sample_x = dataset[0].x
+    sample = dataset[0]
 
     # Inputs ----------------------------------------------------------------------
 
     inputs = {
-        "Dust_map": Input(shape=sample_x["Dust_map"].shape, name="Dust_map"),
+        "Dust_map": Input(shape=sample.data["Dust_map"].shape, name="Dust_map"),
     }
 
     # Network ---------------------------------------------------------------------
@@ -103,6 +120,9 @@ def get_model(dataset):
     x = Flatten()(inputs["Dust_map"])
 
     x = Dropout(0.5)(x)
+
+    
+    x = Dense(128, activation='relu')(x)
 
     x = Dense(32, activation='relu')(x)
 
@@ -167,11 +187,12 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 # PREDICTION
 #==============================================================================
 
+print(model.dataset.test.means)
+print(model.dataset.test.stds)
+
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
-model.predict(model.dataset.test.x, display=True, save_as=f"{archive_path}/predictions")
-
-
-
+model.predict(model.dataset.test.x.data, display=True, save_as=f"{archive_path}/predictions")
+model.predict(model.dataset.test.x.data, display=True)
 
 
 

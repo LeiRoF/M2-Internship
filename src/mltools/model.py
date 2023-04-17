@@ -8,12 +8,15 @@ import matplotlib.pyplot as plt
 from . import sysinfo
 import json
 import yaml
+from .dataset import *
 
 class Model(tf.keras.models.Model):
 
     def __init__(self, *args, dataset, verbose, **kwargs):
         super().__init__(*args, **kwargs)
-        self.dataset = dataset.filter(self.input_names, self.output_names)
+        self.dataset = dataset.filter(self.input_names + self.output_names)
+        self.dataset.xlabels = self.input_names
+        self.dataset.ylabels = self.output_names
 
         if verbose:
             self.print()
@@ -159,10 +162,10 @@ class Model(tf.keras.models.Model):
     
         start_time = time()
 
-        history = super().fit(self.dataset.train.x, self.dataset.train.y,
+        history = super().fit(self.dataset.train.x.data, self.dataset.train.y.data,
                             epochs=epochs,
                             batch_size=batch_size, 
-                            validation_data=(self.dataset.val.x, self.dataset.val.y), 
+                            validation_data=(self.dataset.val.x.data, self.dataset.val.y.data), 
                             verbose=0,
                             callbacks=[CustomCallback()],
                             # workers=10,
@@ -171,7 +174,7 @@ class Model(tf.keras.models.Model):
 
         training_time = time() - start_time
 
-        scores = self.evaluate(self.dataset.test.x, self.dataset.test.y, verbose=0)
+        scores = self.evaluate(self.dataset.test.x.data, self.dataset.test.y.data, verbose=0)
 
         logs.info("Model trained. ✅")
 
@@ -190,14 +193,14 @@ class Model(tf.keras.models.Model):
             if display:
                 print(f"   {key} :")
             for i, prediction in enumerate(value):
-                p = prediction.flatten()[0] * self.dataset.ystds[key] + self.dataset.ymeans[key]
+                p = self.dataset.denormalize(key, prediction.flatten()[0])
                 y_predicted[key].append(p)
 
-                y = self.dataset.test.y[key][i].flatten()[0] * self.dataset.ystds[key] + self.dataset.ymeans[key]
+                y = self.dataset.denormalize(key, self.dataset.test.y.data[key][i].flatten()[0])
                 y_expected[key].append(y)
 
                 if display:
-                    r = self.dataset.ystds[key]
+                    r = self.dataset.stds[key]
                     print(f"      {i} : Predicted: {p:.2e}, Expected: {y:.2e}, Error: {(p-y):.2e} ({np.abs(p-y)/r:.2f} σ)")
 
         # Save predictions
@@ -205,8 +208,8 @@ class Model(tf.keras.models.Model):
             np.savez_compressed(save_as,
                 prediction=y_predicted,
                 expected=y_expected,
-                mean=self.dataset.ymeans,
-                sigma=self.dataset.ystds,
+                mean=self.dataset.means,
+                sigma=self.dataset.stds,
             )
 
         return y_predicted, y_expected

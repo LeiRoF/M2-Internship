@@ -25,21 +25,26 @@ import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 from multiprocessing import Pool
 
+class Vector():
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            try:
+                kwargs[key] = np.array(value)
+            except:
+                raise TypeError(f"{key} must be convertible to a numpy array")
+        self.data = kwargs
+
 class Dataset():
 
     def __init__(self,
                  name:str='Unammed',
                  loader:"function"=None,
                  raw_path:Union[str,None]=None,
-                 archive_path:Union[str,None]=None, 
-                 x:Union[dict[np.ndarray],None]=None,
-                 y:Union[dict[np.ndarray],None]=None, 
+                 archive_path:Union[str,None]=None,
                  val_frac:float=0.2,
                  test_frac:float=0.1,
                  autosave:bool=True,
-                 process=True,
                  verbose:bool=False,
-                 parent:Union["Dataset",None]=None,
                 ) -> "Dataset":
         """
         Create a user-friendly dataset.
@@ -53,7 +58,6 @@ class Dataset():
         self.loader:function = loader
         self.raw_path:str = raw_path
         self.archive_path:str = archive_path
-        self.parent:Dataset = parent
 
         if 0 > val_frac + test_frac >= 1:
             raise ValueError("val_frac, test_frac and the sum of both must be between 0 and 1.")
@@ -61,77 +65,36 @@ class Dataset():
         self.val_frac:float = val_frac
         self.test_frac:float = test_frac
 
-        self.x:dict[np.ndarray] = {}
-        self.xmeans:dict[float] = {}
-        self.xstds:dict[float] = {}
-        self.xmins:dict[float] = {}
-        self.xmaxs:dict[float] = {}
+        self.data:dict[np.ndarray] = {}
+        self.means:dict[float] = {}
+        self.stds:dict[float] = {}
+        self.mins:dict[float] = {}
+        self.maxs:dict[float] = {}
 
-        self.y:dict[np.ndarray] = {}
-        self.ymeans:dict[float] = {}
-        self.ystds:dict[float] = {}
-        self.ymins:dict[float] = {}
-        self.ymaxs:dict[float] = {}
-        
-        self._processed:bool = False if not parent else self.parent.is_processed()
+        self.xlabels:list[str] = None
+        self.ylabels:list[str] = None
 
-        self.train:Dataset = None
-        self.val:Dataset = None
-        self.test:Dataset = None
+        if archive_path and os.path.isfile(archive_path):
+            logs.warn("Archive loading is not implemented yet. Ingoring archive path.")   
+            # self.load_archive()
+        # else:
+        # {
+        #    if archive_path:
+        #        logs.info("No archive found. Loading raw data.")
+        if not (loader and raw_path):
+            raise ValueError("To create a dataset from raw data, both loader and raw_path must be given.")
+        if not callable(loader):
+            raise TypeError('"loader" must be a callable object')
+        if not os.path.isdir(raw_path):
+            raise ValueError(f"Raw data path {raw_path} is not a valid directory.")
+        self._load_raw(verbose=verbose)
+        # }
 
-        # Data loading
-        if x or y:
-            if not (x and y):
-                raise ValueError("To create a dataset with already loaded data, both x and y must be given.")
-            if loader or raw_path or archive_path:
-                raise ValueError("Can't load data from multiple source at once. You must create a dataset using either x and y (already loaded data), either data pathes.")
-
-            self.x = x
-            self.y = y
-        
-        else:
-
-            if archive_path and os.path.isfile(archive_path):
-                logs.warn("Archive loading is not implemented yet. Ingoring archive path.")   
-                # self.load_archive()
-
-            # else:
-            # {
-            #    if archive_path:
-            #        logs.info("No archive found. Loading raw data.")
-            if not (loader and raw_path):
-                raise ValueError("To create a dataset from raw data, both loader and raw_path must be given.")
-            if not callable(loader):
-                raise TypeError('"loader" must be a callable object')
-            if not os.path.isdir(raw_path):
-                raise ValueError(f"Raw data path {raw_path} is not a valid directory.")
-
-            self._load_raw(verbose=verbose)
-            # }
-
-        # Process and save files
-        if self.parent is None:
-
-            if process:
-                self.process(verbose=verbose)
+        self.process(verbose=verbose)
             
-            if autosave and archive_path is not None:
-                logs.warn("Save archive is not implemented yet.")
-                # self.save()
-
-        # If there is a parent dataset, inherit its attributes
-        else:
-            if self.parent.is_processed():
-                for key in self.x.keys():
-                    self.xmeans[key] = self.parent.xmeans[key]
-                    self.xstds[key] = self.parent.xstds[key]
-                    self.xmins[key] = self.parent.xmins[key]
-                    self.xmaxs[key] = self.parent.xmaxs[key]
-                for key, value in self.y.items():
-                    self.ymeans[key] = self.parent.ymeans[key]
-                    self.ystds[key] = self.parent.ystds[key]
-                    self.ymins[key] = self.parent.ymins[key]
-                    self.ymaxs[key] = self.parent.ymaxs[key]
+        if autosave and archive_path is not None:
+            logs.warn("Save archive is not implemented yet.")
+            # self.save()
 
         if verbose:
             logs.info(f"Dataset created ✅\n{self}")
@@ -177,39 +140,27 @@ class Dataset():
 
         files = os.listdir(self.raw_path)
 
-        self.x = {}
-        self.y = {}
-
         if verbose:
             logs.info(f"Loading {self.name}'s raw data from {self.raw_path}...")
             bar = progress.Bar(len(files))
 
         for i, item in enumerate(files):
 
-            try:
-                x, y = self.loader(os.path.join(self.raw_path, item))
-            except:
+            vector = self.loader(os.path.join(self.raw_path, item))
+            if vector is None:
                 continue
 
             # Adding vector number dimension
-            for key, value in x.items():
-                if key not in self.x:
-                    self.x[key] = []
-                self.x[key].append(value)
-
-            for key, value in y.items():
-                if key not in self.y:
-                    self.y[key] =  []
-                self.y[key].append(value)
+            for key, value in vector.data.items():
+                if key not in self.data:
+                    self.data[key] = []
+                self.data[key].append(value)
 
             if verbose:
                 bar(i, prefix=f'{sysinfo.get()}')
 
-        for key, value in self.x.items():
-            self.x[key] = np.array(value)
-        
-        for key, value in self.y.items():
-            self.y[key] = np.array(value)        
+        for key, value in self.data.items():
+            self.data[key] = np.array(value)
 
         if verbose:
             bar(i+1)
@@ -217,103 +168,83 @@ class Dataset():
 
     # Get vectors -------------------------------------------------------------
 
-    def __getitem__(self, key):
-        """Get elements of the dataset that match the key (can be either vector number of element label)"""
+    def __getitem__(self, i):
+        """Get vector(s) of the dataset"""
 
-        # Raise exception if the key type is not supported
-        if not (isinstance(key, str)
-                or isinstance(key, int)
-                or isinstance(key, slice)
-                or isinstance(key, list)
-                or isinstance(key, np.ndarray)
-            ):
-            raise TypeError('"key" must be a string, an integer, a slice, a list/numpy array of integers')
+        res = copy(self)
 
-        # Return the dict elements that match the key
-        if isinstance(key, str):
-            if key in self.x and not key in self.y:
-                return self.x[key]
-            if key in self.y and not key in self.x:
-                return self.y[key]
-            if key in self.x and key in self.y:
-                return self.x[key], self.y[key]
-            else:
-                return None
-        
-        res_x = {}
-        res_y = {}
+        for key, value in res.data.items():
+            res.data[key] = value[i]
 
-        for field, data in self.x.items():
-            res_x[field] = data[key]
-        for field, data in self.y.items():
-            res_y[field] = data[key]
-        
-        return Dataset(name=f"{self.name} subset", x=res_x, y=res_y, parent=self)
+        return res
     
-    # Check if dataset element are dictionaries -------------------------------
-
-    @staticmethod
-    def _checkdict(**kwargs):
-        """Check if x and y are dict"""
-
-        for set, x in kwargs.items():
-            if not isinstance(x, dict):
-                raise TypeError(f"{set} set is not a dictionary.")
-            
-    # Check if the number of vectors is consistent between fields -------------
-
-    @staticmethod
-    def _checksize(**kwargs):
-        """Check length of vectors"""
-
-        for set, x in kwargs.items():
-            sample_key = list(x.keys())[0]
-            if any([i.shape[0] != x[sample_key].shape[0] for i in  x.values()]):
-                raise ValueError(f'\nSet {set} contain inconsistent number of vectors. Found {[i.shape[0] for i in x.values()]}. Maybe the first dimension of your data are not the vector number?\nCurrent element shapes: {[i.shape for i in x.values()]}')
-
-    # Check if the dataset is correctly structured ----------------------------
-
-    @staticmethod
-    def _checkstruct(x, y):
-        """Overhaul check if the dataset is correctly structured"""
-
-        Dataset._checkdict(x=x, y=y)
-        Dataset._checksize(x=x, y=y)
-
     # Get number of vectors in the dataset ------------------------------------
 
     def __len__(self):
         """Get the number of vector in the dataset"""
-        return list(self.x.values())[0].shape[0]
+        return list(self.data.values())[0].shape[0]
 
     @property
     def size(self):
         """Get the number of vector in the dataset"""
         return len(self)
+
+    @property
+    def shape(self):
+        return len(self), len(self.data)
     
     # Get field labels --------------------------------------------------------
     
     @property
-    def xlabels(self):
+    def labels(self):
         """Get the x labels"""
-        return list(self.x.keys())
-    
-    @property
-    def ylabels(self):
-        """Get the y labels"""
-        return list(self.y.keys())
+        return list(self.data.keys())
     
     # Get field shapes --------------------------------------------------------
     
     @property
-    def xshapes(self):
-        """Get the x shapes"""
-        return [i.shape[1:] for i in self.x.values()]
+    def shapes(self):
+        """Get the shape of each field"""
+        return [i.shape[1:] for i in self.data.values()]
+
+    # Get input or output dict ------------------------------------------------
 
     @property
-    def yshapes(self):
-        """Get the y shapes"""
-        return [i.shape[1:] for i in self.y.values()]
+    def x(self):
+        """Get the x dict"""
+
+        if self.xlabels is None:
+            raise ValueError("xlabels attribute must be set before accessing x dict")
+
+        x = self.filter(self.xlabels)
+        return x
+
+    @property
+    def y(self):
+        """Get the y dict"""
+
+        if self.ylabels is None:
+            raise ValueError("ylabels attribute must be set before accessing y dict")
+
+        y = self.filter(self.ylabels)
+        return y
+
+    # Get sub sets ------------------------------------------------------------
+
+    @property
+    def train(self):
+        """Get the train subset"""
+        return self[np.arange(int(len(self)*(1-self.val_frac-self.test_frac)))]
+    
+    @property
+    def val(self):
+        """Get the val subset"""
+        return self[np.arange(int(len(self)*(1-self.val_frac-self.test_frac)),int(len(self)*(1-self.test_frac)))]
+
+    @property
+    def test(self):
+        """Get the test subset"""
+        return self[np.arange(int(len(self)*(1-self.test_frac)),len(self))]
     
     # Get string representation -----------------------------------------------
 
@@ -323,7 +254,7 @@ class Dataset():
     def __repr__(self) -> str:
         """Get printable-ready data summary"""
 
-        max_label_length = max(max([len(i) for i in self.xlabels]), max([len(i) for i in self.ylabels]))
+        max_label_length = max([len(i) for i in self.labels])
         
         res = f"{self.name} dataset, containing {len(self)} vectors."
         if not self.is_processed():
@@ -331,76 +262,71 @@ class Dataset():
         if self.train is not None and self.val is not None and self.test is not None:
             res += f"\nSubsets: Train: {len(self.train)} vectors, Val: {len(self.val)} vectors, Test: {len(self.test)} vectors."
         
-        res += "\nInputs:"
+        res += "\nFields:"
 
-        for key in self.xlabels:
-            res += f"\n - {key + ' ' * (max_label_length - len(key))}"
+        for key in self.labels:
+            res += f"\n   - {key + ' ' * (max_label_length - len(key))}"
 
-            if self.is_processed():
-                res += f"   Mean: {(' ' if float(self.xmeans[key]) >= 0 else '')}{float(self.xmeans[key]):.2e}"
-                res += f"   Std: {(' ' if float(self.xstds[key]) >= 0 else '')}{float(self.xstds[key]):.2e}"
-                res += f"   Min: {(' ' if float(self.xmins[key]) >= 0 else '')}{float(self.xmins[key]):.2e}"
-                res += f"   Max: {(' ' if float(self.xmaxs[key]) >= 0 else '')}{float(self.xmaxs[key]):.2e}"
-            res += f"   Shape: {self.xshapes[self.xlabels.index(key)]}"
-
-        res += "\nOutputs:"
-        for key in self.ylabels:
-            res += f"\n - {key + ' ' * (max_label_length - len(key))}"
+            m = float(self.means[key])
+            s = float(self.stds[key])
+            mi = float(self.mins[key])
+            ma = float(self.maxs[key])
 
             if self.is_processed():
-                res += f"   Mean: {(' ' if float(self.ymeans[key]) >= 0 else '')}{float(self.ymeans[key]):.2e}"
-                res += f"   Std: {(' ' if float(self.ystds[key]) >= 0 else '')}{float(self.ystds[key]):.2e}"
-                res += f"   Min: {(' ' if float(self.ymins[key]) >= 0 else '')}{float(self.ymins[key]):.2e}"
-                res += f"   Max: {(' ' if float(self.ymaxs[key]) >= 0 else '')}{float(self.ymaxs[key]):.2e}"
-            res += f"   Shape: {self.yshapes[self.ylabels.index(key)]}"
+                res += f"   Mean: {(' ' if m >= 0 else '')}{m:.2e}"
+                res += f"   Std: {(' ' if s >= 0 else '')}{s:.2e}"
+                res += f"   Min: {(' ' if mi >= 0 else '')}{mi:.2e}"
+                res += f"   Max: {(' ' if ma >= 0 else '')}{ma:.2e}"
+            res += f"   Shape: {self.shapes[self.labels.index(key)]}"
 
         return res
-    
-    # Add vector to a dataset -------------------------------------------------
 
-    # def add(self, x:np.ndarray, y:np.ndarray):
-    #     """Add data to the dataset"""
+    def print_few_vectors(self, count=5) -> str:
+        """Print a resume of few vectors in the dataset"""
 
-    #     for key, value in x.items():
-    #         if key in self.x:
-    #             self.x[key] = np.concatenate((self.x[key], value), axis=0)
-    #         else:
-    #             self.x[key] = value
-    #     for key, value in y.items():
-    #         if key in self.y:
-    #             self.y[key] = np.concatenate((self.y[key], value), axis=0)
-    #         else:
-    #             self.y[key] = value
-
-    #     Dataset._checkstruct(self.x, self.y)
-
-    #     return self
-
-    # def __add__(self, dataset:Union["Dataset", tuple[dict[np.ndarray], dict[np.ndarray]]]):
-    #     """Add data to the dataset"""
-
-    #     if isinstance(dataset, Dataset):
-    #         self.merge(dataset)
-    #     else:
-    #         self.add(*dataset)
+        max_label_length = max([len(i) for i in self.labels])
         
-    #     return self
+        res = f"Here is {count} vectors from the {self.name} dataset:"
+     
+        for i in range(count):
 
-    # def merge(self, dataset:"Dataset"):
-    #     """Merge two datasets"""
+            r = np.random.randint(0, len(self))
+            vector = self[r]
 
-    #     self.add(dataset.x, dataset.y)
+            res += f"\nVector {r}"
 
-    #     return self    
+            for key in self.labels:
+                res += f"\n   - {key + ' ' * (max_label_length - len(key))}"
+
+                mean = self.means[key]
+                std = self.stds[key]
+                if std == 0:
+                    std = 1
+
+                m = np.mean(self.denormalize(key, vector.data[key]))
+                s = np.std(self.denormalize(key, vector.data[key]))
+                mi = np.min(self.denormalize(key, vector.data[key]))
+                ma = np.max(self.denormalize(key, vector.data[key]))
+
+                if vector.data[key].shape != (1,):
+                    res += f"   Mean: {(' ' if m >= 0 else '')}{m:.2e}"
+                    res += f"   Std: {(' ' if s >= 0 else '')}{s:.2e}"
+                    res += f"   Min: {(' ' if mi >= 0 else '')}{mi:.2e}"
+                    res += f"   Max: {(' ' if ma >= 0 else '')}{ma:.2e}"
+                    res += f"   Shape: {vector.data[key].shape}"
+                else:
+                    res += f"   Value: {self.denormalize(key, vector.data[key])[0]:.2e}"
+
+        print(res)
+        return res
 
     # Process the data (normalize and split) ----------------------------------
 
     def process(self, verbose:bool=True) -> "Dataset":
         """Process the dataset"""
 
-        self.normalize(verbose=verbose)
-        self.shuffle(uniform_tests_indices=True,verbose=verbose)
-        self.split(verbose=verbose)
+        self._normalize(verbose=verbose)
+        self._shuffle(uniform_tests_indices=True,verbose=verbose)
 
         self._processed = True
 
@@ -411,50 +337,39 @@ class Dataset():
     
     # Normalization -----------------------------------------------------------
 
-    def normalize(self, verbose:bool=True):
+    def _normalize(self, verbose:bool=True):
         """Normalize the dataset"""
         if verbose:
             logs.info(f"Normalizing {self.name}'s Dataset...")
 
-        self.xmeans = {}
-        self.xstds = {}
-        self.xmins = {}
-        self.xmaxs = {}
-        self.ymeans = {}
-        self.ystds = {}
-        self.ymins = {}
-        self.ymaxs = {}
+        bar = progress.Bar(len(self.data))
 
-        bar = progress.Bar(len(self.x) + len(self.y))
-
-        for key, value in self.x.items():
-            self.xmeans[key] = np.mean(value)
-            self.xstds[key] = np.std(value)
-            self.xmins[key] = np.min(value)
-            self.xmaxs[key] = np.max(value)
-            self.x[key] = (value + self.xmins[key]) / (self.xmaxs[key] - self.xmins[key])
-            # self.x[key] = (value - self.xmeans[key]) / self.xstds[key]
+        for key, value in self.data.items():
+            self.means[key] = np.mean(value)
+            self.stds[key] = np.std(value)
+            self.mins[key] = np.min(value)
+            self.maxs[key] = np.max(value)
+            self.data[key] = self.normalize(key, value)
             bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
 
-        for key, value in self.y.items():
-            self.ymeans[key] = np.mean(value)
-            self.ystds[key] = np.std(value)
-            self.ymins[key] = np.min(value)
-            self.ymaxs[key] = np.max(value)
-            self.y[key] = (value + self.ymins[key]) / (self.ymaxs[key] - self.ymins[key])
-            # self.y[key] = (value - self.ymeans[key]) / self.ystds[key]
-            bar(bar.previous_progress[-1]+1, prefix=sysinfo.get())
-
-        bar(len(self.x) + len(self.y))
+        bar(len(self.data))
 
         if verbose:
             logs.info(f"{self.name} dataset normalized ✅")
 
         return self
     
+    def normalize(self, key, value):
+        return (value + self.mins[key]) / (self.maxs[key] - self.mins[key])
+    # return (value - mean) / std
+
+    def denormalize(self, key, value):
+        return value * (self.maxs[key] - self.mins[key]) - self.mins[key]
+    # return value * std + mean
+    
     # Shuffle the dataset -----------------------------------------------------
 
-    def shuffle(self, uniform_tests_indices=False, verbose:bool=True):
+    def _shuffle(self, uniform_tests_indices=False, verbose:bool=True):
         """Shuffle the dataset"""
 
         if verbose:
@@ -494,63 +409,31 @@ class Dataset():
 
         return self
     
-    # Split the dataset -------------------------------------------------------
-
-    def split(self, verbose:bool=True):
-        """Split the dataset into train, validation and test sets"""
-
-        if verbose:
-            logs.info(f"Splitting {self.name}'s Dataset...")
-
-        N = len(self)
-        self.train = self[:int(N*(1-self.val_frac-self.test_frac))]
-        self.train.name = f"{self.name} train"
-        self.val = self[int(N*(1-self.val_frac-self.test_frac)):int(N*(1-self.test_frac))]
-        self.val.name = f"{self.name} val"
-        self.test = self[int(N*(1-self.test_frac)):]
-        self.test.name = f"{self.name} test"
-
-        if verbose:
-            logs.info(f"{self.name} dataset splitted ✅\n - Train set: {len(self.train)} vectors\n - Validation set: {len(self.val)} vectors\n - Test set: {len(self.test)} vectors")
-
-        return self.train, self.val, self.test
-    
     # Filter the dataset ------------------------------------------------------
 
-    def filter(self, xlabels:list[str]=None, ylabels:list[str]=None, verbose=False):
+    def filter(self, labels:list[str]=None, verbose=False):
         """Filter the dataset"""
+
+        if isinstance(labels, str):
+            labels = [labels]
 
         if verbose:
             logs.info(f"Filtering {self.name} dataset...")
-    
-        if xlabels is not None:
-            xlabels = [label.lower().replace(" ", "_") for label in xlabels]
 
-        filtered_x = {}
-        for label in self.xlabels:
-            if label.lower().replace(" ", "_") in xlabels:
-                filtered_x[label] = self[label]
-
-        if ylabels is not None:
-            ylabels = [label.lower().replace(" ", "_") for label in ylabels]
-
-        filtered_y = {}
-        for label in self.ylabels:
-            if label.lower().replace(" ", "_") in ylabels:
-                filtered_y[label] = self[label]
-
-        dataset = Dataset(name=f"{self.name} filtered", x=filtered_x, y=filtered_y, parent=self)
-        if self.train is not None:
-            dataset.train = self.train.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
-        if self.val is not None:
-            dataset.val = self.val.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
-        if self.test is not None:
-            dataset.test = self.test.filter(xlabels=xlabels, ylabels=ylabels, verbose=False)
+        filtered = copy(self)
+        filtered.name = f"{self.name} filtered"
+        for label in self.labels:
+            if label not in labels:
+                del filtered.data[label]
+                del filtered.means[label]
+                del filtered.stds[label]
+                del filtered.mins[label]
+                del filtered.maxs[label]
 
         if verbose:
-            logs.info(f"{self.name} dataset filtered ✅\n{dataset}")
+            logs.info(f"{self.name} dataset filtered ✅\n{filtered}")
 
-        return dataset
+        return filtered
 
 
     
