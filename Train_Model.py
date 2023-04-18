@@ -55,7 +55,7 @@ def load_file(path:str):
     global cpt
 
     cpt += 1
-    if not cpt%10 == 0:
+    if not cpt%1 == 0:
         return
 
     data = np.load(path)
@@ -119,10 +119,8 @@ def get_model(dataset):
 
     x = Flatten()(inputs["Dust_map"])
 
-    x = Dropout(0.5)(x)
-
-    
-    x = Dense(128, activation='relu')(x)
+    tf.random.set_seed(0)
+    x = Dropout(0.5)(x, training=True)
 
     x = Dense(32, activation='relu')(x)
 
@@ -191,27 +189,9 @@ print(model.dataset.test.means)
 print(model.dataset.test.stds)
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
-model.predict(model.dataset.test.x.data, display=True, save_as=f"{archive_path}/predictions")
-model.predict(model.dataset.test.x.data, display=True)
 
+predictions = []
+for i in range(1000):
+    predictions.append(model.predict(model.dataset.test.x.data, display=False))
 
-
-
-
-# Verification que model.dataset.test soit bien composé de vecteurs uniformément répartis dans le dataset
-
-# print("\nBefore:\n")
-
-# print(dataset)
-
-# print("\nAfter:\n")
-
-# x = dataset.x
-# for key, value in x.items():
-#     x[key] = value * dataset.xstds[key] + dataset.xmeans[key]
-
-# y = dataset.y
-# for key, value in y.items():
-#     y[key] = value * dataset.ystds[key] + dataset.ymeans[key]
-
-# mltools.dataset.Dataset(name="Verification", x=x, y=y, verbose=True, process=True)
+np.savez_compressed(f"{archive_path}/predictions.npz", predictions=predictions)
