@@ -63,7 +63,7 @@ class Model(tf.keras.models.Model):
         json.dump(dic, open(f'{archive_path}/details.json', 'w'), indent=4)
 
         if history is not None:
-            np.savez_compressed(f'{archive_path}/history.npz', **history.history, allow_pickle=True)
+            np.savez_compressed(f'{archive_path}/history.npz', **history.history)
             
             N = len(history.history)
             N1 = int(np.sqrt(N))
@@ -119,7 +119,7 @@ class Model(tf.keras.models.Model):
             models = {}
             new_model = "0000"
 
-        models[new_model] = archive_path
+        models[str(new_model)] = archive_path
 
         with open(os.path.join(reference_path, "model_list.yml"), "w") as f:
             yaml.dump(models, f)

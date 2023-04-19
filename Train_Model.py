@@ -13,6 +13,7 @@ from src import mltools
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
+tf.random.set_seed(0)
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
 print("\nEnd importing dependencies -----------------------------------------------------\n")
 
@@ -28,7 +29,7 @@ test_frac  = 0.1
 raw_dataset_path = "data/dataset_old" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
 epochs = 1000
-batch_size=10
+batch_size=50
 loss = "mean_squared_error"
 optimizer = 'SGD'
 metrics = [
@@ -117,13 +118,12 @@ def get_model(dataset):
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Dust_map"])
-
-    tf.random.set_seed(0)
+    x = Conv2D(16, (5, 5), activation='relu', padding='same')(inputs["Dust_map"])
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Flatten()(x)
+    x = Dense(128, activation='relu')(x)
     x = Dropout(0.5)(x, training=True)
-
     x = Dense(32, activation='relu')(x)
-
     x = Dropout(0.5)(x)
 
     # Outputs ---------------------------------------------------------------------
@@ -190,8 +190,17 @@ print(model.dataset.test.stds)
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
-predictions = []
+predictions = {}
+expectations = model.dataset.test.y.data
+for key in expectations.keys():
+    expectations[key] = model.dataset.denormalize(key, expectations[key])
+    
 for i in range(1000):
-    predictions.append(model.predict(model.dataset.test.x.data, display=False))
+    prediction, _ = model.predict(model.dataset.test.x.data, display=False)
 
-np.savez_compressed(f"{archive_path}/predictions.npz", predictions=predictions)
+    for key in prediction:
+        if not key in predictions:
+            predictions[key] = []
+        predictions[key].append(prediction[key])                               
+        
+np.savez_compressed(f"{archive_path}/predictions.npz", predictions=predictions, expectations=expectations)
