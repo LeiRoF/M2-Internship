@@ -119,7 +119,11 @@ def get_model(dataset):
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Dust_map"])
+    x = Conv2D(16, (5, 5), activation='relu', padding='same')(inputs["Dust_map"])
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Flatten()(x)
     x = Dense(256, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
     x = Dense(128, activation='relu')(x)
