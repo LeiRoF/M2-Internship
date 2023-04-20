@@ -2,12 +2,12 @@
 #OAR -n "ML Model Training"
 #OAR -p gpu>0
 #OAR -l /gpu=3,walltime=20:00:00
-#OAR -O logs/Train_Model.log
-#OAR -E logs/Train_Model-error.log
+#OAR -O logs/Train_Model_gpu.log
+#OAR -E logs/Train_Model_gpu-error.log
 #OAR -t besteffort
 
-echo " " > logs/Train_Model-error.log
-echo " " > logs/Train_Model.log
+echo " " > logs/Train_Model_gpu-error.log
+echo " " > logs/Train_Model_gpu.log
 
 export http_proxy=http://11.0.0.254:3142/
 export https_proxy=http://11.0.0.254:3142/

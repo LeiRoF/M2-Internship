@@ -15,7 +15,6 @@ os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 import tensorflow as tf
 tf.random.set_seed(0)
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
-total_mass_mae = tf.keras.metrics.MeanAbsoluteError(name="Total_mass_MAE")
 print("\nEnd importing dependencies -----------------------------------------------------\n")
 
 archive_path = archive.new(verbose=True)
@@ -29,14 +28,8 @@ val_frac = 0.2
 test_frac  = 0.1
 raw_dataset_path = "data/dataset_old" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 100000
+epochs = 1000
 batch_size=100
-loss = "mean_squared_error"
-optimizer = 'SGD'
-metrics = [
-    total_mass_mae,
-    # tf.keras.metrics.MeanAbsoluteError(name="Max_temperature_MAE"),
-]
 
 #==============================================================================
 # LOAD DATASET
@@ -75,6 +68,9 @@ def load_file(path:str):
         # y
         Total_mass =      np.array([data["mass"]]),
         Max_temperature = np.array([np.amax(data["dust_temperature"])]),
+        Plummer_max =     np.array([data["n_H"]]),
+        Plummer_radius =  np.array([data["r"]]),
+        Plummer_slope =   np.array([data["p"]]),
     )
 
     mass.append(data["mass"])
@@ -123,23 +119,39 @@ def get_model(dataset):
     x = Dense(256, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
     x = Dense(128, activation='relu')(x)
-    x = Dense(32, activation='relu')(x)
-    x = Dropout(0.5)(x)
+    Plummer_max = Dense(32, activation='relu')(x)
+    Plummer_radius = Dense(32, activation='relu')(x)
+    Plummer_slope = Dense(32, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
+        # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
         # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
+        "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Plummer_max),
+        "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Plummer_radius),
+        "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Plummer_slope),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
+
+# Options ---------------------------------------------------------------------
+
+loss="mean_squared_error"
+optimizer='SGD'
+metrics=[
+    tf.keras.metrics.MeanAbsoluteError(name="MAE"),
+]
 
 # Compile, show and train -----------------------------------------------------
 
 logs.info("Building model...")
 model = get_model(dataset)
-model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+model.compile(
+    loss=loss,
+    optimizer=optimizer,
+    metrics=metrics
+)
 logs.info("Model built. ✅")
 
 #==============================================================================

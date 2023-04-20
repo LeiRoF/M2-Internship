@@ -2,12 +2,12 @@
 #OAR -n "ML Model Training"
 #OAR -l /nodes=1,walltime=20:00:00
 #OAR -t tesla
-#OAR -O logs/Train_Model_conv.log
-#OAR -E logs/Train_Model_conv-error.log
+#OAR -O logs/Train_Model_tesla.log
+#OAR -E logs/Train_Model_tesla-error.log
 #OAR -t besteffort
 
-echo " " > logs/Train_Model_conv-error.log
-echo " " > logs/Train_Model_conv.log
+echo " " > logs/Train_Model_tesla-error.log
+echo " " > logs/Train_Model_tesla.log
 
 export http_proxy=http://11.0.0.254:3142/
 export https_proxy=http://11.0.0.254:3142/
@@ -19,6 +19,6 @@ NSLOTS=$(cat $OAR_NODEFILE | wc -l)
 echo $NSLOTS
 
 source ./venv/bin/activate
-python Train_Model_conv.py
+python Train_Model.py
 
 exit 0
