@@ -56,9 +56,9 @@ R = np.sqrt(X**2 + Y**2 + Z**2)
 
 # Global functions ------------------------------------------------------------
 
-def plummer(M:float, r:float, R:float, p:float) -> float:
+def plummer(M:float, d:float, r:float, p:float) -> float:
 
-    return 3 * M /(4 * np.pi * R**3) * (1 + r**p / R**p)**(-5/2)
+    return 3 * M /(4 * np.pi * r**3) * (1 + d**p / r**p)**(-5/2)
 
 
 
@@ -350,10 +350,8 @@ for i, n_H in enumerate(n_List):
             run_SOC()
 
             freq, S, T = read_SOC_output()
-            ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
-            dust_image = S[ifreq,:,:]
-
-            arg_max = np.argmax(dust_image[N//2,:])
+            # ifreq    = argmin(abs(freq-2.9979e8/250.0e-6)) # Choose frequency closest to 250um
+            dust_cube = S # S[ifreq,:,:]
 
             # Save data -------------------------------------------------------
 
@@ -373,13 +371,17 @@ for i, n_H in enumerate(n_List):
                 N2H_cube = N2H_cube,
                 CO_v = CO_v,
                 N2H_v = N2H_v,
-                dust_image = dust_image,
+                dust_freq = freq,
+                dust_cube = dust_cube,
                 dust_temperature = T,
                 density_cube = density_cube.value,
                 n_H = n_H.value,
                 r = r.value,
                 p = p.value,
-                mass = mass.value
+                mass = mass.value,
+                space_range = space_range.value,
+                space_step = space_step.value,
+                N = N,
             )
 
             if debug:

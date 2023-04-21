@@ -10,14 +10,14 @@ __pycache__/
 
 # Generated data
 logs/
-dataset/
-dataset_old/
 .vscode/
 src/manim/media/
 data/dataset.npz
 
-archives_old/
 archives/
-
-data_old/
 data/
+
+/level_pop.save
+/N2H+.dump
+/gauss_py.dat
+/CO.dump

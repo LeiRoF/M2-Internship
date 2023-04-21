@@ -26,9 +26,9 @@ print("")
 
 val_frac = 0.2
 test_frac  = 0.1
-raw_dataset_path = "data/dataset_old" # path to the raw dataset
+raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 1000
+epochs = 100
 batch_size=100
 
 #==============================================================================
@@ -50,27 +50,40 @@ def load_file(path:str):
     global cpt
 
     cpt += 1
-    if not cpt%1 == 0:
+    if not cpt%10 == 0:
         return
 
     data = np.load(path)
 
+    def normalized_plummer(n_H:float, M:float, d:float, r:float, p:float) -> float:
+        return 3 * M /(4 * np.pi * r**3) * (1 + np.abs(d)**p / r**p)**(-5/2)
+
     vector = mltools.dataset.Vector(
 
         # x
-        Dust_wavelenght = np.array([250.,]), # [um]
-        Dust_map =        data["dust_image"].reshape(*data["dust_image"].shape, 1), # adding a channel dimension
-        CO_velocity =     data["CO_v"],
-        CO_cube =         data["CO_cube"].reshape(*data["CO_cube"].shape, 1), # adding a channel dimension
-        N2H_velocity =    data["N2H_v"],
-        N2H_cube =        data["N2H_cube"].reshape(*data["N2H_cube"].shape, 1), # adding a channel dimension
+        Dust_wavelenght    = np.array([250.,]), # [um]
+        Dust_cube          = data["dust_cube"].reshape(*data["dust_cube"].shape, 1), # adding a channel dimension
+        Dust_map_at_250um  = data["dust_cube"][data["dust_cube"].shape[0]//2,:,:].reshape(*data["dust_cube"].shape[1:], 1),
+        # Dust_map_at_250um  = data["dust_cube"][np.argmin(np.abs(data["dust_freq"]-2.9979e8/250.0e-6)),:,:].reshape(*data["dust_cube"].shape[:1], 1)
+        CO_velocity        = data["CO_v"],
+        CO_cube            = data["CO_cube"].reshape(*data["CO_cube"].shape, 1), # adding a channel dimension
+        N2H_velocity       = data["N2H_v"],
+        N2H_cube           = data["N2H_cube"].reshape(*data["N2H_cube"].shape, 1), # adding a channel dimension
 
         # y
-        Total_mass =      np.array([data["mass"]]),
-        Max_temperature = np.array([np.amax(data["dust_temperature"])]),
-        Plummer_max =     np.array([data["n_H"]]),
-        Plummer_radius =  np.array([data["r"]]),
-        Plummer_slope =   np.array([data["p"]]),
+        Total_mass         = np.array([data["mass"]]),
+        Max_temperature    = np.array([np.amax(data["dust_temperature"])]),
+        Plummer_max        = np.array([data["n_H"]]),
+        Plummer_radius     = np.array([data["r"]]),
+        Plummer_slope      = np.array([data["p"]]),
+        Plummer_profile_1D = normalized_plummer(
+            n_H = data["n_H"],
+            M = 1,
+            d = np.linspace(-25, 25, 3, endpoint=True),
+            r = data["r"],
+            p = data["p"],
+        ),
+
     )
 
     mass.append(data["mass"])
@@ -110,27 +123,28 @@ def get_model(dataset):
     # Inputs ----------------------------------------------------------------------
 
     inputs = {
-        "Dust_map": Input(shape=sample.data["Dust_map"].shape, name="Dust_map"),
+        "Dust_map_at_250um": Input(shape=sample.data["Dust_map_at_250um"].shape, name="Dust_map_at_250um"),
     }
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Dust_map"])
-    x = Dense(256, activation='relu')(x)
-    x = Dropout(0.3)(x, training=True)
+    x = Flatten()(inputs["Dust_map_at_250um"])
+    # x = Dense(256, activation='relu')(x)
     x = Dense(128, activation='relu')(x)
-    Plummer_max = Dense(32, activation='relu')(x)
-    Plummer_radius = Dense(32, activation='relu')(x)
-    Plummer_slope = Dense(32, activation='relu')(x)
+    x = Dropout(0.3)(x, training=True)
+    # Plummer_max = Dense(32, activation='relu')(x)
+    # Plummer_radius = Dense(32, activation='relu')(x)
+    # Plummer_slope = Dense(32, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
+        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
         # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
-        "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Plummer_max),
-        "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Plummer_radius),
-        "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Plummer_slope),
+        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Plummer_max),
+        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Plummer_radius),
+        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Plummer_slope),
+        "Plummer_profile_1D": Dense(3, activation='sigmoid', name="Plummer_profile_1D")(x),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -197,22 +211,6 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 # PREDICTION
 #==============================================================================
 
-print(model.dataset.test.means)
-print(model.dataset.test.stds)
-
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
-predictions = {}
-expectations = model.dataset.test.y.data
-for key in expectations.keys():
-    expectations[key] = model.dataset.denormalize(key, expectations[key])
-    
-for i in range(1000):
-    prediction, _ = model.predict(model.dataset.test.x.data, display=False)
-
-    for key in prediction:
-        if not key in predictions:
-            predictions[key] = []
-        predictions[key].append(prediction[key])                               
-        
-np.savez_compressed(f"{archive_path}/predictions.npz", predictions=predictions, expectations=expectations)
+model.predict(display=True, N=5, save_as=f"{archive_path}/predictions.npz")

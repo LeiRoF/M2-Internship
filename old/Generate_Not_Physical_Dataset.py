@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from LRFutils import archive, progress
-from src import plot
+from old import plot
 from scipy.special import wofz
 from multiprocess import Pool, cpu_count
 import os
