@@ -28,7 +28,7 @@ val_frac = 0.2
 test_frac  = 0.1
 raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 100
+epochs = 10000
 batch_size=100
 
 #==============================================================================
@@ -50,7 +50,7 @@ def load_file(path:str):
     global cpt
 
     cpt += 1
-    if not cpt%10 == 0:
+    if not cpt%1 == 0:
         return
 
     data = np.load(path)
@@ -79,7 +79,7 @@ def load_file(path:str):
         Plummer_profile_1D = normalized_plummer(
             n_H = data["n_H"],
             M = 1,
-            d = np.linspace(-25, 25, 3, endpoint=True),
+            d = np.linspace(-25, 25, 64, endpoint=True),
             r = data["r"],
             p = data["p"],
         ),
@@ -128,23 +128,21 @@ def get_model(dataset):
 
     # Network ---------------------------------------------------------------------
 
-    x = Flatten()(inputs["Dust_map_at_250um"])
-    # x = Dense(256, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
+    x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["Dust_map_at_250um"])
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Flatten()(x)
+    x = Dense(32, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
-    # Plummer_max = Dense(32, activation='relu')(x)
-    # Plummer_radius = Dense(32, activation='relu')(x)
-    # Plummer_slope = Dense(32, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(x),
-        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
-        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Plummer_max),
-        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Plummer_radius),
-        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Plummer_slope),
-        "Plummer_profile_1D": Dense(3, activation='sigmoid', name="Plummer_profile_1D")(x),
+        # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(Total_mass),
+        "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
+        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(x),
+        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(x),
+        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(x),
+        # "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(Plummer_profile_1D),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -152,7 +150,7 @@ def get_model(dataset):
 # Options ---------------------------------------------------------------------
 
 loss="mean_squared_error"
-optimizer='SGD'
+optimizer='RMSprop'
 metrics=[
     tf.keras.metrics.MeanAbsoluteError(name="MAE"),
 ]
