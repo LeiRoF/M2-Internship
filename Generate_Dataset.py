@@ -31,21 +31,19 @@ T = 10 * u.K # Kinetic temperature [K]
 CO_fractional_abundance  = 1e-4 # particle / hydrogen atom
 N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 
-n_List, dn = np.linspace(1e3, 1e6, 10, endpoint=True, retstep=True)
+n_List = np.logspace(3, 6, 10, endpoint=True)
 n_List *= u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
-dn *= u.cm**-3
 
-r_List, dr = np.linspace(0.02, 1.0, 10, endpoint=True, retstep=True)
+r_List = np.logspace(-2, 1, 10, endpoint=True)
 r_List *= u.pc # Core radius from 0.02 to 1 parsec
-dr *= u.pc
 
 p_List, dp = np.linspace(1.5,  2.5, 10, endpoint=True, retstep=True) # Sharpness of the plummer profile from 1.5 to 2.5
 p_list = np.flip(p_List) * u.dimensionless_unscaled
 dp *= u.dimensionless_unscaled
 
-print(dn)
-print(dr)
-print(dp)
+print("n_List =", n_List)
+print("r_List =", r_List)
+print("p_List =", p_List)
 
 debug = False
 
@@ -129,9 +127,9 @@ def write_LOC_config(N:int, molecule:str, channels:int):
 def LOC_read_spectra_3D(filename:str) -> tuple[ndarray,ndarray]:
 
     with open(filename, 'rb') as fp:
-        NRA, NDE, NCHN  =  fromfile(fp, int32, 3)
-        V0, DV          =  fromfile(fp, float32, 2)
-        SPE             =  fromfile(fp, float32).reshape(NRA, NDE,2+NCHN)
+        NRA, NDE, NCHN  =  fromfile(fp, np.int32, 3)
+        V0, DV          =  fromfile(fp, np.float32, 2)
+        SPE             =  fromfile(fp, np.float32).reshape(NRA, NDE,2+NCHN)
         OFF             =  SPE[:,:,0:2].copy()
         SPE             =  SPE[:,:,2:]
 
@@ -141,8 +139,8 @@ def LOC_read_spectra_3D(filename:str) -> tuple[ndarray,ndarray]:
 def LOC_read_Tex_3D(filename):
 
     fp    =  open(filename, 'rb')
-    NX, NY, NZ, dummy  =  fromfile(fp, int32, 4)
-    TEX                =  fromfile(fp, float32).reshape(NZ, NY, NX)
+    NX, NY, NZ, dummy  =  fromfile(fp, np.int32, 4)
+    TEX                =  fromfile(fp, np.float32).reshape(NZ, NY, NX)
     fp.close()
     return TEX 
 
@@ -151,7 +149,7 @@ def LOC_read_Tex_3D(filename):
 def run_LOC():
     global debug
 
-    subprocess.run(["python","src/LOC/LOC_OT.py","data/LOC/input_config.ini"], capture_output=not debug)
+    subprocess.run(["python","src/LOC/LOC_OT.py","data/LOC/input_config.ini"], capture_output=debug)
 
     def move_file(src, dst):
         try:
@@ -216,7 +214,7 @@ def write_SOC_config(N:int, space_step:float):
 def run_SOC():
     global debug
 
-    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=not debug)
+    subprocess.run(["python","src/SOC/ASOC.py","data/SOC/input_config.ini"], capture_output=debug)
 
     def move_file(src, dst):
         if os.path.isdir(dst):
@@ -239,13 +237,13 @@ def read_SOC_output():
     nfreq    = len(freq)                      # ... number of frequencies
 
     with open('data/SOC/output/map_dir_00.bin', 'rb') as fp:  # open the surface-brightness file
-        dims     = fromfile(fp, int32, 2)                     # read map dimensions in pixels
-        S        = fromfile(fp, float32).reshape(nfreq, dims[0], dims[1]) # read intensities
+        dims     = fromfile(fp, np.int32, 2)                     # read map dimensions in pixels
+        S        = fromfile(fp, np.float32).reshape(nfreq, dims[0], dims[1]) # read intensities
         S       *= 1.0e-5                                     # convert surface brightness from Jy/sr to MJy/sr
 
     with open('data/SOC/output/temperature.save', 'rb') as fp:
-        NX, NY, NZ, _, _, _ = fromfile(fp, int32, 6)
-        T = fromfile(fp, float32).reshape(NZ, NY, NX)
+        NX, NY, NZ, _, _, _ = fromfile(fp, np.int32, 6)
+        T = fromfile(fp, np.float32).reshape(NZ, NY, NX)
 
     return freq, S, T
 
@@ -262,8 +260,8 @@ def plot_SOC():
     text(1.34, 0.5, r'$S_{\nu} \/ \/ \rm (MJy \/ sr^{-1})$', transform=ax.transAxes,
     va='center', rotation=90)
     fp       = open('data/SOC/output/temperature.save', 'rb')            # open the file with dust temperatures
-    NX, NY, NZ, LEVELS, CELLS, CELLS_LEVEL_1 = fromfile(fp, int32, 6)
-    T        = fromfile(fp, float32).reshape(NZ, NY, NX) # T is simply a 64x64x64 cell cube
+    NX, NY, NZ, LEVELS, CELLS, CELLS_LEVEL_1 = fromfile(fp, np.int32, 6)
+    T        = fromfile(fp, np.float32).reshape(NZ, NY, NX) # T is simply a 64x64x64 cell cube
     ax = subplot(122)
     imshow(T[NZ//2, :, :])                    # plot cross section through the model centre
     title("Dust temperature")
@@ -293,8 +291,10 @@ for i, n_H in enumerate(n_List):
     for j, r in enumerate(r_List): 
         for k, p in enumerate(p_List):
 
-            n_H = n_H + np.random.rand() * dn
-            r = r + np.random.rand() * dr
+            if i > 0:
+                n_H = n_H - np.random.rand() * (n_List[i-1] - n_List[i])
+            if j > 0:
+                r = r - np.random.rand() * (r_List[j-1] - r_List[j])
             p = p + np.random.rand() * dp
 
             # Updating progress bar

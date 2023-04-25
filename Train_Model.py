@@ -30,7 +30,7 @@ print("")
 
 val_frac = 0.2
 test_frac  = 0.1
-raw_dataset_path = "data/dataset" # path to the raw dataset
+raw_dataset_path = "data/dataset_old" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
 epochs = 10000
 batch_size=100
@@ -138,16 +138,22 @@ def get_model(dataset):
     x = Flatten()(inputs["Dust_map_at_250um"])
     x = Dense(128, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
+    Pmax = Dense(32, activation='relu')(x)
+    Prad = Dense(32, activation='relu')(x)
+    Pslope = Dense(32, activation='relu')(x)
+    Pslopelog = Dense(32, activation='relu')(x)
+    P1d = Dense(128, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
         # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(Total_mass),
         # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
-        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(x),
-        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(x),
-        # "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(x),
-        "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(x),
+        "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Pmax),
+        "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Prad),
+        "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Pslope),
+        "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(Pslopelog),
+        "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(P1d),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
