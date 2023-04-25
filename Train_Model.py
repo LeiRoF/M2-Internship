@@ -12,7 +12,11 @@ from src import mltools
 
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/usr/lib/cuda"
+
+import tensorrt
 import tensorflow as tf
+# tf.config.experimental.enable_tensor_float_32_execution(enabled=True)
 tf.random.set_seed(0)
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
 print("\nEnd importing dependencies -----------------------------------------------------\n")
@@ -76,6 +80,7 @@ def load_file(path:str):
         Plummer_max        = np.array([data["n_H"]]),
         Plummer_radius     = np.array([data["r"]]),
         Plummer_slope      = np.array([data["p"]]),
+        Plummer_slope_log  = np.array([np.log(data["p"])]),
         Plummer_profile_1D = normalized_plummer(
             n_H = data["n_H"],
             M = 1,
@@ -128,21 +133,21 @@ def get_model(dataset):
 
     # Network ---------------------------------------------------------------------
 
-    x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["Dust_map_at_250um"])
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Flatten()(x)
-    x = Dense(32, activation='relu')(x)
+    # x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["Dust_map_at_250um"])
+    # x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Flatten()(inputs["Dust_map_at_250um"])
+    x = Dense(128, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
 
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
         # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(Total_mass),
-        "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
+        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
         # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(x),
         # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(x),
-        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(x),
-        # "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(Plummer_profile_1D),
+        # "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(x),
+        "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(x),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
@@ -211,4 +216,4 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
-model.predict(display=True, N=5, save_as=f"{archive_path}/predictions.npz")
+model.predict(display=True, N=1000, save_as=f"{archive_path}/predictions.npz")

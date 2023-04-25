@@ -63,6 +63,19 @@ class Model(tf.keras.models.Model):
         json.dump(dic, open(f'{archive_path}/details.json', 'w'), indent=4)
 
         if history is not None:
+
+            if len(self.output_names) == 1:
+                output_name = self.output_names[0]
+                keys = list(history.history.keys())
+                for key in keys:
+                    if key != "loss" and key != "val_loss":
+                        if key.startswith("val_"):
+                            new_key = "val_" + output_name + "_" + key[4:]
+                        else:
+                            new_key = output_name + "_" + key
+                        history.history[new_key] = history.history[key]
+                        del history.history[key]
+
             np.savez_compressed(f'{archive_path}/history.npz', **history.history)
             
             N = len(history.history)
@@ -168,8 +181,8 @@ class Model(tf.keras.models.Model):
                             validation_data=(self.dataset.val.x.data, self.dataset.val.y.data), 
                             verbose=0,
                             callbacks=[CustomCallback()],
-                            # workers=10,
-                            # use_multiprocessing=True
+                            workers=1,
+                            use_multiprocessing=True
                         )
 
         training_time = time() - start_time
