@@ -13,6 +13,9 @@ from src import mltools
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir=/usr/lib/cuda"
+os.environ["http_proxy"] = "http://11.0.0.254:3142/"
+os.environ["https_proxy"] = "http://11.0.0.254:3142/"
+os.environ["LD_LIBRARY_PATH"] = "$LD_LIBRARY_PATH:/usr/local/cuda/lib64"
 
 import tensorrt
 import tensorflow as tf
@@ -32,36 +35,36 @@ val_frac = 0.2
 test_frac  = 0.1
 raw_dataset_path = "data/dataset_old" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 10000
+epochs = 1000
 batch_size=100
 
 #==============================================================================
 # LOAD DATASET
 #==============================================================================
 
+
+
+def normalized_plummer(n_H:float, d:float, r:float, p:float) -> float:
+    profile = 3/(4 * np.pi * r**3) * (1 + np.abs(d)**p / r**p)**(-5/2)
+    profile = n_H * profile / np.sum(profile)
+    return profile
+
 # Load one file (= vector) ----------------------------------------------------
 
-cpt = -1
-
-mass = []
+cpt = 0
 
 def load_file(path:str):
     """
     Load a dataset vector from a file.
     Vector is a dictionary of numpy arrays that represent your data.
     """
-
     global cpt
 
-    cpt += 1
-    if not cpt%1 == 0:
+    if not cpt%10 == 0:
         return
+    cpt += 1
 
     data = np.load(path)
-
-    def normalized_plummer(n_H:float, M:float, d:float, r:float, p:float) -> float:
-        return 3 * M /(4 * np.pi * r**3) * (1 + np.abs(d)**p / r**p)**(-5/2)
-
     vector = mltools.dataset.Vector(
 
         # x
@@ -83,15 +86,12 @@ def load_file(path:str):
         Plummer_slope_log  = np.array([np.log(data["p"])]),
         Plummer_profile_1D = normalized_plummer(
             n_H = data["n_H"],
-            M = 1,
             d = np.linspace(-25, 25, 64, endpoint=True),
             r = data["r"],
             p = data["p"],
         ),
 
     )
-
-    mass.append(data["mass"])
 
     return vector
 
@@ -106,16 +106,6 @@ dataset = mltools.dataset.Dataset(
     test_frac=test_frac,
     verbose=True,
 )
-
-# plt.figure()
-# plt.hist(mass, bins=100)
-# plt.savefig(f"Total_mass_before.png")
-
-# plt.figure()
-# plt.hist(dataset.denormalize("Total_mass", dataset.data["Total_mass"]), bins=100)
-# plt.savefig(f"Total_mass_after.png")
-
-# dataset.print_few_vectors()
 
 #==============================================================================
 # BUILD MODEL
@@ -138,10 +128,10 @@ def get_model(dataset):
     x = Flatten()(inputs["Dust_map_at_250um"])
     x = Dense(128, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
-    Pmax = Dense(32, activation='relu')(x)
-    Prad = Dense(32, activation='relu')(x)
-    Pslope = Dense(32, activation='relu')(x)
-    Pslopelog = Dense(32, activation='relu')(x)
+    # Pmax = Dense(128, activation='relu')(x)
+    # Prad = Dense(128, activation='relu')(x)
+    # Pslope = Dense(128, activation='relu')(x)
+    # Pslopelog = Dense(32, activation='relu')(x)
     P1d = Dense(128, activation='relu')(x)
 
     # Outputs ---------------------------------------------------------------------
@@ -149,10 +139,10 @@ def get_model(dataset):
     outputs = {
         # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(Total_mass),
         # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
-        "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Pmax),
-        "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Prad),
-        "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Pslope),
-        "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(Pslopelog),
+        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Pmax),
+        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Prad),
+        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Pslope),
+        # "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(Pslopelog),
         "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(P1d),
     }
 
@@ -222,4 +212,4 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
-model.predict(display=True, N=1000, save_as=f"{archive_path}/predictions.npz")
+p = model.predict(display=True, N=5, save_as=f"{archive_path}/predictions.npz")

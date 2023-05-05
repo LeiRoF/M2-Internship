@@ -195,36 +195,47 @@ class Model(tf.keras.models.Model):
     
     def predict(self, *args, display=False, save_as=None, N=1, **kwargs):
 
-        expectations = {}
-        predictions = {}
-        for key in self.dataset.test.y.data.keys():
-            expectations[key] = self.dataset.denormalize(key, self.dataset.test.y.data[key])
-            predictions[key] = []
-            for i in range(len(self.dataset.test.x)):
-                predictions[key].append([])
-
+        p = []
         for _ in range(N):
-            p = super().predict(self.dataset.test.x.data, *args, verbose=0, **kwargs)
-            for key in p.keys():
-                for i, output in enumerate(p[key]):
-                    predictions[key][i].append(self.dataset.denormalize(key, output))
+            p.append(super().predict(self.dataset.test.x.data, *args, verbose=0, **kwargs))
 
+        results = {}
+        for label in self.dataset.y.labels:
+            results[label] = []
+            for e, expectation in enumerate(self.dataset.test.y.data[label]):
+                results[label].append({"expectation": expectation,"predictions":[]})
+                for prediction in p:
+                    results[label][e]["predictions"].append(prediction[label][e])
+
+        i = 0
         if display:
-            for key in predictions.keys():
-                print(key)
-                for i, output in enumerate(predictions[key]):
-                    e = expectations[key][i]
-                    print(f"   Epxpectation {i} : ", e.shape, f"Mean: {np.mean(e):.2e}, Std:{np.std(e):.2e}, Min:{np.min(e):.2e}, Max:{np.max(e):.2e}")
-                    for j, o in enumerate(output):
-                        print(f"      Prediction {j} : ", o.shape, f"Mean: {np.mean(o):.2e}, Std:{np.std(o):.2e}, Min:{np.min(o):.2e}, Max:{np.max(o):.2e}")
+            for output in results.keys():
+                for run in results[output]:
+                    expectation = run["expectation"]
+                    print(
+                        f"   Epxpectation {i} : ",
+                        expectation.shape,
+                        f"Mean: {np.mean(expectation):.2e}",
+                        f"Std: {np.std(expectation):.2e}",
+                        f"Min: {np.min(expectation):.2e}",
+                        f"Max: {np.max(expectation):.2e}"
+                    )
+                    i+=1
+
+                    for j, prediction in enumerate(run["predictions"]):
+                        print(
+                            f"      Prediction {j} : ",
+                            prediction.shape,
+                            f"Mean: {np.mean(prediction):.2e}",
+                            f"Std:{np.std(prediction):.2e}",
+                            f"Min:{np.min(prediction):.2e}",
+                            f"Max:{np.max(prediction):.2e}"
+                        )
 
         # Save predictions
         if save_as is not None:
             np.savez_compressed(save_as,
-                predictions=predictions,
-                expectations=expectations,
-                mean=self.dataset.means,
-                sigma=self.dataset.stds,
+                predictions=results,
             )
 
-        return predictions, expectations
+        return results

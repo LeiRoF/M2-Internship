@@ -36,6 +36,12 @@ class Vector():
 
 class Dataset():
 
+    #==========================================================================
+    # CONSTRUCTORS
+    #==========================================================================
+
+    
+
     def __init__(self,
                  name:str='Unammed',
                  loader:"function"=None,
@@ -228,6 +234,24 @@ class Dataset():
 
         y = self.filter(self.ylabels)
         return y
+    
+    @property
+    def denormalized(self):
+        """Get the data dict"""
+
+        res = {}
+        for key, value in self.data.items():
+            res[key] = self.denormalize(key, value)
+        return res
+    
+    def keys(self):
+        return self.data.keys()
+    
+    def values(self):
+        return self.data.values()
+    
+    def items(self):
+        return self.data.items()
 
     # Get sub sets ------------------------------------------------------------
 
