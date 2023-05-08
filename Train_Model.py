@@ -1,14 +1,21 @@
+
+
+
+
 print("\nImporting dependencies ---------------------------------------------------------\n")
+
+from contextlib import redirect_stdout
+import io
 from time import time
 program_start_time = time()
 import numpy as np
-from LRFutils import logs, archive
+from LRFutils import logs, archive, color
 import os
 import yaml
 import json
 import matplotlib.pyplot as plt
 
-from src import mltools
+from src import mltools, physcial_models
 
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -21,7 +28,9 @@ import tensorrt
 import tensorflow as tf
 # tf.config.experimental.enable_tensor_float_32_execution(enabled=True)
 tf.random.set_seed(0)
+tf.config.run_functions_eagerly(True)
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
+
 print("\nEnd importing dependencies -----------------------------------------------------\n")
 
 archive_path = archive.new(verbose=True)
@@ -33,7 +42,7 @@ print("")
 
 val_frac = 0.2
 test_frac  = 0.1
-raw_dataset_path = "data/dataset_old" # path to the raw dataset
+raw_dataset_path = "data/dataset" # path to the raw dataset
 dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
 epochs = 1000
 batch_size=100
@@ -41,13 +50,6 @@ batch_size=100
 #==============================================================================
 # LOAD DATASET
 #==============================================================================
-
-
-
-def normalized_plummer(n_H:float, d:float, r:float, p:float) -> float:
-    profile = 3/(4 * np.pi * r**3) * (1 + np.abs(d)**p / r**p)**(-5/2)
-    profile = n_H * profile / np.sum(profile)
-    return profile
 
 # Load one file (= vector) ----------------------------------------------------
 
@@ -68,29 +70,28 @@ def load_file(path:str):
     vector = mltools.dataset.Vector(
 
         # x
-        Dust_wavelenght    = np.array([250.,]), # [um]
-        Dust_cube          = data["dust_cube"].reshape(*data["dust_cube"].shape, 1), # adding a channel dimension
-        Dust_map_at_250um  = data["dust_cube"][data["dust_cube"].shape[0]//2,:,:].reshape(*data["dust_cube"].shape[1:], 1),
-        # Dust_map_at_250um  = data["dust_cube"][np.argmin(np.abs(data["dust_freq"]-2.9979e8/250.0e-6)),:,:].reshape(*data["dust_cube"].shape[:1], 1)
+        dust_wavelenght    = np.array([250.,]), # [um]
+        dust_cube          = data["dust_cube"].reshape(*data["dust_cube"].shape, 1), # adding a channel dimension
+        dust_map_at_250um  = data["dust_cube"][np.argmin(np.abs(data["dust_freq"]-2.9979e8/250.0e-6)),:,:].reshape(*data["dust_cube"].shape[1:], 1),
         CO_velocity        = data["CO_v"],
         CO_cube            = data["CO_cube"].reshape(*data["CO_cube"].shape, 1), # adding a channel dimension
         N2H_velocity       = data["N2H_v"],
         N2H_cube           = data["N2H_cube"].reshape(*data["N2H_cube"].shape, 1), # adding a channel dimension
+        space_range        = data["space_range"],
 
         # y
-        Total_mass         = np.array([data["mass"]]),
-        Max_temperature    = np.array([np.amax(data["dust_temperature"])]),
-        Plummer_max        = np.array([data["n_H"]]),
-        Plummer_radius     = np.array([data["r"]]),
-        Plummer_slope      = np.array([data["p"]]),
-        Plummer_slope_log  = np.array([np.log(data["p"])]),
-        Plummer_profile_1D = normalized_plummer(
-            n_H = data["n_H"],
-            d = np.linspace(-25, 25, 64, endpoint=True),
-            r = data["r"],
-            p = data["p"],
+        total_mass         = np.array([data["mass"]]),
+        max_temperature    = np.array([np.amax(data["dust_temperature"])]),
+        plummer_max        = np.array([data["n_H"]]),
+        plummer_radius     = np.array([data["r"]]),
+        plummer_slope      = np.array([data["p"]]),
+        plummer_slope_log  = np.array([np.log(data["p"])]),
+        plummer_profile_1D = physcial_models.plummer(
+            space_range=data["space_range"],
+            max=data["n_H"],
+            radius=data["r"],
+            slope=data["p"],
         ),
-
     )
 
     return vector
@@ -118,14 +119,14 @@ def get_model(dataset):
     # Inputs ----------------------------------------------------------------------
 
     inputs = {
-        "Dust_map_at_250um": Input(shape=sample.data["Dust_map_at_250um"].shape, name="Dust_map_at_250um"),
+        "dust_map_at_250um": Input(shape=sample.data["dust_map_at_250um"].shape, name="dust_map_at_250um"),
     }
 
     # Network ---------------------------------------------------------------------
 
-    # x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["Dust_map_at_250um"])
+    # x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["dust_map_at_250um"])
     # x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Flatten()(inputs["Dust_map_at_250um"])
+    x = Flatten()(inputs["dust_map_at_250um"])
     x = Dense(128, activation='relu')(x)
     x = Dropout(0.3)(x, training=True)
     # Pmax = Dense(128, activation='relu')(x)
@@ -137,13 +138,13 @@ def get_model(dataset):
     # Outputs ---------------------------------------------------------------------
 
     outputs = {
-        # "Total_mass": Dense(1, activation='sigmoid', name="Total_mass")(Total_mass),
-        # "Max_temperature": Dense(1, activation='relu', name="Max_temperature")(x),
-        # "Plummer_max": Dense(1, activation='relu', name="Plummer_max")(Pmax),
-        # "Plummer_radius": Dense(1, activation='relu', name="Plummer_radius")(Prad),
-        # "Plummer_slope": Dense(1, activation='relu', name="Plummer_slope")(Pslope),
-        # "Plummer_slope_log": Dense(1, activation='relu', name="Plummer_slope_log")(Pslopelog),
-        "Plummer_profile_1D": Dense(64, activation='sigmoid', name="Plummer_profile_1D")(P1d),
+        # "total_mass": Dense(1, activation='sigmoid', name="total_mass")(total_mass),
+        # "max_temperature": Dense(1, activation='relu', name="max_temperature")(x),
+        # "plummer_max": Dense(1, activation='relu', name="plummer_max")(Pmax),
+        # "plummer_radius": Dense(1, activation='relu', name="plummer_radius")(Prad),
+        # "plummer_slope": Dense(1, activation='relu', name="plummer_slope")(Pslope),
+        # "plummer_slope_log": Dense(1, activation='relu', name="plummer_slope_log")(Pslopelog),
+        "plummer_profile_1D": Dense(64, activation='sigmoid', name="plummer_profile_1D")(P1d),
     }
 
     return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)

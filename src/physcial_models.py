@@ -9,7 +9,7 @@ import unittest
 # Parameters -> Profile -------------------------------------------------------
 
 def plummer(space_range:np.ndarray[float], max:float, radius:float, slope:float) -> np.ndarray[float]:
-    """_summary_
+    """Draw a plummer profile.
 
     Args:
         space_range (np.ndarray[float]): A vector of space values for which the profile is computed.
@@ -39,14 +39,16 @@ class Test_plummer(unittest.TestCase):
 # Profile -> Parameters -------------------------------------------------------
 
 def fit_plummer(space_range:np.ndarray[float], profile:np.ndarray[float]) -> tuple[float, float, float]:
-    """_summary_
+    """Fit the parameters of a plummer profile.
 
     Args:
         space_range (np.ndarray[float]): A vector of space values corresponding to the profile.
         profile (np.ndarray[float]): The profile.
 
     Returns:
-        tuple[float, float, float]: The parameters of the profile.
+        float: The maximum value of the profile.
+        float: The radius of the profile.
+        float: The slope of the profile.
     """
     param = [1e4, 2, 1]
     (max, radius, slope), _ = curve_fit(plummer, space_range, profile, p0=param, maxfev = 100000)
