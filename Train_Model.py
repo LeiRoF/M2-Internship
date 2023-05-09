@@ -7,6 +7,8 @@ print("\nImporting dependencies ------------------------------------------------
 from contextlib import redirect_stdout
 import io
 from time import time
+
+from . import physical_models
 program_start_time = time()
 import numpy as np
 from LRFutils import logs, archive, color
@@ -15,7 +17,7 @@ import yaml
 import json
 import matplotlib.pyplot as plt
 
-from src import mltools, physcial_models
+from src import mltools
 
 os.environ["HDF5_USE_FILE_LOCKINGS"] = "FALSE"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -68,7 +70,7 @@ def load_file(path:str):
 
     data = np.load(path)
     vector = mltools.dataset.Vector(
-
+        
         # x
         dust_wavelenght    = np.array([250.,]), # [um]
         dust_cube          = data["dust_cube"].reshape(*data["dust_cube"].shape, 1), # adding a channel dimension
@@ -86,7 +88,7 @@ def load_file(path:str):
         plummer_radius     = np.array([data["r"]]),
         plummer_slope      = np.array([data["p"]]),
         plummer_slope_log  = np.array([np.log(data["p"])]),
-        plummer_profile_1D = physcial_models.plummer(
+        plummer_profile_1D = physical_models.plummer(
             space_range=data["space_range"],
             max=data["n_H"],
             radius=data["r"],
