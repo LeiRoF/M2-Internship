@@ -197,7 +197,7 @@ class Model(tf.keras.models.Model):
 
         p = []
         for _ in range(N):
-            p.append(super().predict(self.dataset.test.x[:2].data, *args, verbose=0, **kwargs))
+            p.append(super().predict(self.dataset.test.x.data, *args, verbose=0, **kwargs))
 
         results = {}
         for label in self.dataset.y.labels:
