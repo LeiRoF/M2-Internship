@@ -1,15 +1,12 @@
 import numpy as np
-from typing import Union, Callable
-import os
-from LRFutils import progress, logs
-import sysinfo
-import matplotlib.pyplot as plt
 from copy import deepcopy as copy
-from multiprocessing import Pool
 
 from typing import Union, Callable, List, Dict, Tuple, Any
 
 class Vector(Dict):
+
+    __uid_counter = 0
+
     def __init__(self, **kwargs):
         """Vector class
 
@@ -31,11 +28,89 @@ class Vector(Dict):
 
         super().__init__()
 
+        self.renew_uid()
+
         for key, value in kwargs.items():
             try:
                 self[key] = np.array(value)
             except:
                 raise TypeError(f"{key} must be convertible to a numpy array")
+            
+    def renew_uid(self):
+        """Renew the unique identifier of the vector
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3])
+            >>> print(v.uid)
+            0
+            >>> v.renew_uid()
+            >>> print(v.uid)
+            1
+        """
+
+        self._uid = Vector.__uid_counter
+        Vector.__uid_counter += 1
+
+    def set_uid(self, uid):
+        """Set the unique identifier of the vector. This is not recommended, as it may cause conflicts with other vectors.
+
+        Args:
+            uid (int): Unique identifier
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3])
+            >>> print(v.uid)
+            0
+            >>> v.set_uid(2)
+            >>> print(v.uid)
+            2
+        """
+
+        self._uid = uid
+
+    @property
+    def uid(self):
+        """Get the unique identifier of the vector
+
+        Returns:
+            int: Unique identifier
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3])
+            >>> print(v.uid)
+            0
+        """
+        return self._uid
+
+    @property
+    def labels(self):
+        """Get the labels of the vector
+        
+        Returns:
+            List[str]: List of labels
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]], z=2)
+            >>> print(v.labels)
+            ['x', 'y', 'z']
+        """
+        return list(self.keys())
+
+    def twin(self):
+        """Create a twin vector, which has a different uid
+
+        Returns:
+            Vector: Twin vector
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3])
+            >>> v2 = v.twin()
+            >>> print(v2)
+            Vector(
+                x: Mean= 6.66e-01   Std= 2.05e+00   Min=-2.00e+00   Max= 3.00e+00   Shape=(3,)
+            )
+        """
+        return copy(self).renew_uid()
 
     def __add__(self, element):
         """Add a vector to anything
@@ -113,10 +188,7 @@ class Vector(Dict):
             [1, 4, -1]
         """
 
-        if isinstance(element, Vector):
-            return Vector(**{key: element[key] - self[key] for key in self.keys()})
-        else:
-            return Vector(**{key: element - self[key] for key in self.keys()})
+        return Vector(**{key: element - self[key] for key in self.keys()})
     
     def __mul__(self, element):
         """Multiply a vector by anything
@@ -205,10 +277,7 @@ class Vector(Dict):
             0.5
         """
 
-        if isinstance(element, Vector):
-            return Vector(**{key: vector[key] / self[key] for key in self.keys()})
-        else:
-            return Vector(**{key: element / self[key] for key in self.keys()})
+        return Vector(**{key: element / self[key] for key in self.keys()})
 
     def __getitem__(self, key):
         """Get a vector item
@@ -264,35 +333,6 @@ class Vector(Dict):
         """
 
         super().__delitem__(key)
-
-    def __deepcopy__(self, memo):
-        """Deepcopy a vector
-
-        Args:
-            memo (dict): Memoization dictionary
-
-        Returns:
-            Vector: Copied vector
-
-        Example:
-            >>> v = Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]], z=2)
-            >>> v_copy = copy(v)
-            >>> v_copy["x"] = 0
-            >>> print(v)
-            Vector(
-                x: Mean= 6.66e-01   Std= 2.05e+00   Min=-2.00e+00   Max= 3.00e+00   Shape=(3,)
-                y: Mean= 0.50e-01   Std= 6.60e+00   Min=-9.00e+00   Max= 8.00e+00   Shape=(2, 3)
-                z: Value= 2.00e+00
-            )
-            >>> print(v_copy)
-            Vector(
-                x: Value= 0.00e+00
-                y: Mean= 0.50e-01   Std= 6.60e+00   Min=-9.00e+00   Max= 8.00e+00   Shape=(2, 3)
-                z: Value= 2.00e+00
-            )
-        """
-
-        return Vector(**{key: np.copy(value) for key, value in self.items()})
     
     def __repr__(self):
         """Vector representation
@@ -310,25 +350,25 @@ class Vector(Dict):
             )
         """
 
-        res = "Vector(\n   "
+        res = f"Vector {self.uid} ("
 
         for label in self.labels:
 
-            res += f"{label}:"
+            res += f"\n   {label}:"
 
             m = np.mean(self[label])
             s = np.std(self[label])
             mi = np.min(self[label])
             ma = np.max(self[label])
 
-            if vector.data[label].size > 1:
+            if self[label].size > 1:
                 res += f"   Mean={(' ' if m >= 0 else '')}{m:.2e}"
                 res += f"   Std={(' ' if s >= 0 else '')}{s:.2e}"
                 res += f"   Min={(' ' if mi >= 0 else '')}{mi:.2e}"
                 res += f"   Max={(' ' if ma >= 0 else '')}{ma:.2e}"
-                res += f"   Shape={vector[label].shape}"
+                res += f"   Shape={self[label].shape}"
             else:
-                res += f"   Value={self.denormalize(label, vector[label])[0]:.2e}"
+                res += f"   Value={self[label].item():.2e}"
         
         res += "\n)"
 
@@ -406,8 +446,33 @@ class Vector(Dict):
         if not isinstance(vector, Vector):
             raise TypeError(f"vector must be a Vector object, not {type(vector)}")
 
-        return all([np.array_equal(self[key], vector[key]) for key in self.keys()])
+        return all([np.array_equal(self[label], vector[label]) for label in self.labels])
     
+    def approx(self, vector, tol=1e-14):
+        """Test if two vectors are approximately equal
+
+        Args:
+            vector (Vector): Vector to compare
+
+        Raises:
+            TypeError: If vector is not a Vector object
+
+        Returns:
+            bool: True if approximately equal, False otherwise
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]])
+            >>> v.approx(Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]]))
+            True
+            >>> v.approx(Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -8]]))
+            False
+        """
+
+        if not isinstance(vector, Vector):
+            raise TypeError(f"vector must be a Vector object, not {type(vector)}")
+
+        return all([np.allclose(self[label], vector[label], atol=tol) for label in self.labels])
+
     def __ne__(self, vector):
         """Test if two vectors are not equal
         
@@ -555,6 +620,7 @@ class Vector(Dict):
 
         return Vector(**{key: np.abs(self[key]) for key in self.keys()})
     
+    @property
     def shapes(self):
         """Get the shapes of all vector fields
 
@@ -569,6 +635,7 @@ class Vector(Dict):
     
         return {key: self[key].shape for key in self.keys()}
 
+    @property
     def sizes(self):
         """Get the sizes of all vector fields
 
@@ -580,9 +647,24 @@ class Vector(Dict):
             >>> v.sizes()
             {'x': 3, 'y': 6}
         """
+        sizes = {}
+        for key in self.keys():
+            sizes[key] = self[key].size
+        return sizes
 
-        return {key: self[key].size for key in self.keys()}
+    def raw_str(self):
+        """Get a string representation of the vector fields as a dictionary
 
+        Returns:
+            str: String representation of vector fields
+
+        Example:
+            >>> v = Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]])
+            >>> v.raw_str()
+            "{'x': array([ 1, -2,  3]), 'y': array([[-4, -5,  6], [ 7,  8, -9]])}"
+        """       
+
+        return super().__repr__()
 
 
 
@@ -611,6 +693,10 @@ class TestVector(unittest.TestCase):
         assert v["x"].tolist() == [1, -2, 3], v["x"].tolist()
         assert v["y"].tolist() == [[-4, -5, 6],[7, 8, -9]], v["y"].tolist()
         assert v["z"].tolist() == 2, v["z"].tolist()
+
+    def test_labels(self):
+        v = TestVector.get_v()
+        assert v.labels == ["x", "y", "z"], v.labels
 
     def test_add(self):
         v = TestVector.get_v()
@@ -688,6 +774,113 @@ class TestVector(unittest.TestCase):
         assert res["y"].tolist() == [[1, 1, 2],[7/6, 4, 9]], res["y"].tolist()
         assert res["z"].tolist() == -2/3, res["z"].tolist()
 
+    def test_setitem(self):
+        v = TestVector.get_v()
+
+        v["x"] = [3, 2, 1]
+        assert v["x"].tolist() == [3, 2, 1], v["x"].tolist()
+
+        v["x"] = 1
+        assert v["x"].tolist() == 1, v["x"].tolist()
+
+    def test_delitem(self):
+        v = TestVector.get_v()
+
+        del v["x"]
+        assert "x" not in v.keys(), v.keys()
+    
+    def test_repr(self):
+        v = TestVector.get_v()
+
+        assert repr(v).startswith("Vector ")
+        assert repr(v).endswith("""(
+   x:   Mean= 6.67e-01   Std= 2.05e+00   Min=-2.00e+00   Max= 3.00e+00   Shape=(3,)
+   y:   Mean= 5.00e-01   Std= 6.70e+00   Min=-9.00e+00   Max= 8.00e+00   Shape=(2, 3)
+   z:   Value=2.00e+00
+)"""), repr(v)
+
+    def test_str(self):
+        v = TestVector.get_v()
+
+        assert repr(v).startswith("Vector ")
+        assert repr(v).endswith("""(
+   x:   Mean= 6.67e-01   Std= 2.05e+00   Min=-2.00e+00   Max= 3.00e+00   Shape=(3,)
+   y:   Mean= 5.00e-01   Std= 6.70e+00   Min=-9.00e+00   Max= 8.00e+00   Shape=(2, 3)
+   z:   Value=2.00e+00
+)"""), repr(v)
+        
+    def test_len(self):
+        v = TestVector.get_v()
+
+        assert len(v) == 3, len(v)
+
+    def test_iter(self):
+        v = TestVector.get_v()
+
+        for label, element in v:
+            assert label in v.keys(), (label, v.keys())
+            assert np.all(element == v[label]), (element, v[label])
+    
+    def test_eq(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v == copy(v)) == True
+        assert (v == v2) == False
+
+    def test_ne(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v != copy(v)) == False
+        assert (v != v2) == True
+
+    def test_lt(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v < copy(v)) == False
+        assert (v < copy(v+1)) == True
+        assert (v < v2) == False
+
+    def test_le(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v <= copy(v)) == True
+        assert (v <= copy(v+1)) == True
+        assert (v <= v2) == False
+
+    def test_gt(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v > copy(v)) == False
+        assert (v > copy(v-1)) == True
+        assert (v > v2) == False
+
+    def test_ge(self):
+        v = TestVector.get_v()
+        v2 = TestVector.get_v2()
+
+        assert (v >= copy(v)) == True
+        assert (v >= copy(v-1)) == True
+        assert (v >= v2) == False
+
+    def test_abs(self):
+        v = TestVector.get_v()
+
+        assert abs(v) == Vector(x=[1, 2, 3], y=[[4, 5, 6],[7, 8, 9]], z=2), abs(v)
+
+    def test_shapes(self):
+        v = TestVector.get_v()
+
+        assert v.shapes == {"x": (3,), "y": (2, 3), "z": ()}, v.shapes
+
+    def test_sizes(self):
+        v = TestVector.get_v()
+
+        assert v.sizes == {"x": 3, "y": 6, "z": 1}, v.sizes
 
 if __name__ == '__main__':
     unittest.main()

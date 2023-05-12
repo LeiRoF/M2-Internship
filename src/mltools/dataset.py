@@ -7,35 +7,41 @@ from vector import Vector
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 from multiprocessing import Pool
-
 from typing import Union, Callable, List, Dict, Tuple, Any
-
-#==========================================================================
-# DATASET
-#==========================================================================
 
 class Dataset(Dict):
 
     def __init__(self, vectors:List[Vector]=None, name:str="Unnamed"):
-        """
-        Create a user-friendly dataset.
-        - loader & raw path allow to load raw data
-        - If archive_path is given and the file exist, it will ignore the raw path.
+        """Create a dataset from a list of vectors
+
+        Args:
+            vectors (List[Vector], optional): the list of vectors to create the dataset from. Defaults to None.
+            name (str, optional): the name of the dataset. Defaults to "Unnamed".
+
+        Raises:
+            TypeError: if vectors is not a list of Vector
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3})
+            ... ])
         """
         super().__init__()
 
         self._name = name
 
+        self._vectors_uid = np.array([])
+
         if vectors is not None:
             if isinstance(vectors, Vector):
                 vectors = [vectors]
+            for vector in vectors:
+                self._vectors_uid = np.append(self._vectors_uid, [vector.uid], axis=0)
             for label in vectors[0].keys():
                 self[label] = np.array([vector[label] for vector in vectors])
-        
-        self["index"] = np.arange(len(vectors))
 
         self._normalized = False
-        self._splitted = False
 
         self._means = {}
         self._stds = {}
@@ -44,7 +50,9 @@ class Dataset(Dict):
 
         self._train = None
         self._test = None
-        self._validation = None
+        self._val = None
+
+        self._normalization_method = "zscore"
 
     # Name -------------------------------------------------------------------
 
@@ -54,6 +62,11 @@ class Dataset(Dict):
 
         Returns:
             str: the name of the dataset
+
+        Examples:
+            >>> dataset = Dataset(name="MyData")
+            >>> dataset.name
+            "MyData"
         """
         return self._name
     
@@ -66,10 +79,18 @@ class Dataset(Dict):
 
         Raises:
             TypeError: if value is not a string
+
+        Examples:
+            >>> dataset = Dataset(name="MyData")
+            >>> dataset.name = "MyNewData"
+            >>> dataset.name
+            "MyNewData"
         """
-        if not isinstance(value, str):
-            raise TypeError(f"name must be a string, not {type(value)}")
-        self.name = value
+        try:
+            value = str(value)
+        except:
+            raise TypeError(f"name must be convertible to a string, which is not the case of {type(value)}")
+        self._name = value
 
     # Get vectors -------------------------------------------------------------
 
@@ -84,6 +105,25 @@ class Dataset(Dict):
 
         Returns:
             numpy.ndarray | Vector | Dataset: the selected column | vector | subset of the dataset
+
+        Alias:
+            __getitem__
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.get("x")
+            [[1, 2, 3], [-1, -2, -3]]
+            >>> dataset.get(0)
+            Vector({"x":[1,2,3], "y":2})
+            >>> dataset.get(0:2)
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+            ])
         """
 
         # Dictionnary behavior
@@ -94,9 +134,8 @@ class Dataset(Dict):
         elif isinstance(i, int):
             res = Vector()
             for key, value in self.items():
-                if key == "index":
-                    continue
                 res[key] = value[i]
+            res.set_uid(self._vectors_uid[i])
             return res
 
         # Numpy behavior
@@ -105,6 +144,7 @@ class Dataset(Dict):
                 res = copy(self)
                 for key, value in res.items():
                     res[key] = value[i]
+                res._vectors_uid = res._vectors_uid[i]
                 return res
             except:
                 TypeError(f"Invalid index type: {type(i)}. It must be either string, int or anything that can be used to index a 1D numpy array")
@@ -123,6 +163,22 @@ class Dataset(Dict):
 
         Alias:
             get
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset["x"]
+            [[1, 2, 3], [-1, -2, -3]]
+            >>> dataset[0]
+            Vector({"x":[1,2,3], "y":2})
+            >>> dataset[0:2]
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+            ])
         """
         return self.get(i)
 
@@ -139,6 +195,15 @@ class Dataset(Dict):
 
         Returns:
             list[int]: the lsit of index where the vector is found
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.index(Vector({"x":[1,2,3], "y":2}))
+            [0]
         """
 
         if not isinstance(vector, Vector):
@@ -146,19 +211,8 @@ class Dataset(Dict):
         
         res = []
 
-        for i in range(len(self)):
-
-            match = 0
-            for label in self.labels:
-                if label == "index":
-                    continue
-                if label not in vector.keys():
-                    raise TypeError(f"vector must have the same labels as the dataset, found vector label: {vector.keys()} and dataset labels: {self.labels}")
-          
-                if self[label][i] == vector[label]:
-                    match += 1
-
-            if match == len(self.labels) - 2:
+        for i, v in enumerate(self):
+            if v == vector:
                 res.append(i)
             
         return res
@@ -175,20 +229,35 @@ class Dataset(Dict):
             TypeError: if vector is not a Vector 
 
         Returns:
-            Dataset: the dataset   
+            Dataset: the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3})
+            ... ])
+            >>> dataset.append(Vector({"x":[9,8,7], "y":4}))
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+                Vector({"x":[9,8,7], "y":4}),
+            ])
         """
         if not isinstance(vector, Vector):
             raise TypeError(f"vector must be a Vector, not {type(vector)}")
 
-        if self.keys() != vector.keys():
-            raise TypeError(f"vector must have the same keys as the dataset, found vector label: {vector.keys()} and dataset labels: {self.keys()}")
+        if self.labels != vector.labels:
+            raise TypeError(f"vector must have the same keys as the dataset, found vector label: {list(vector.keys())} and dataset labels: {self.labels}")
         
+        if self.shapes != vector.shapes:
+            raise TypeError(f"vector must have the same shapes as the vectors in the dataset, found vector shapes: {list(vector.shapes)} and dataset shapes: {self.shapes}")
+
         was_normalized = self.is_normalized()
         self.denormalize()
 
-        for key, value in vector.items():
-            self[key] = np.append(self[key], value)
-        self["index"] = np.append(self["index"], len(self))
+        for label, element in vector.items():
+            self[label] = np.append(self[label], [element], axis=0)
+        self._vectors_uid = np.append(self._vectors_uid, [vector.uid], axis=0)
 
         if was_normalized:
             self.normalize()
@@ -206,6 +275,20 @@ class Dataset(Dict):
 
         Returns:
             Dataset: the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2})
+            ... ])
+            >>> dataset.add([
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+                Vector({"x":[9,8,7], "y":4}),
+            ])
         """
         if isinstance(vectors, Vector):
             self.append(vectors)
@@ -227,6 +310,72 @@ class Dataset(Dict):
             raise TypeError(f"vectors must be a Vector or a list of Vector, not {type(vectors)}")
         
         return self
+    
+
+        """Check if two datasets are equals
+
+        Args:
+            other (Dataset): the dataset to compare
+
+        Raises:
+            TypeError: if other is not a Dataset
+
+        Returns:
+            bool: True if the datasets are equals, False otherwise
+
+        Examples:
+            >>> dataset1 = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset2 = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset3 = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ... ])
+            >>> dataset1 == dataset2
+            True
+            >>> dataset1 == dataset3
+            False
+        """
+
+        if not isinstance(other, Dataset):
+            raise TypeError(f"other must be a Dataset, not {type(other)}")
+        
+        for i, vector in enumerate(self):
+            if vector != other[i]:
+                return False
+        
+        return True
+    
+    # Iteration ---------------------------------------------------------------
+
+    def __iter__(self):
+        """Iterate over the dataset
+
+        Yields:
+            Vector: the next vector in the dataset
+        
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> for vector in dataset:
+            ...     print(vector)
+            Vector({"x":[1,2,3], "y":2})
+            Vector({"x":[-1,-2,-3], "y":3})
+            Vector({"x":[9,8,7], "y":4})
+        """
+
+        for i in range(len(self)):
+            yield self[i]
 
     # Remove vectors ----------------------------------------------------------
 
@@ -241,6 +390,20 @@ class Dataset(Dict):
 
         Raises:
             TypeError: if i is not an int
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.pop(1)
+            Vector({"x":[-1,-2,-3], "y":3})
+            >>> dataset
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[9,8,7], "y":4}),
+            ])
         """
         if not isinstance(i, int):
             raise TypeError(f"i must be an int, not {type(i)}")
@@ -249,9 +412,9 @@ class Dataset(Dict):
         self.denormalize()
 
         popped = Vector()
-        for key, value in self.items():
-            popped[key] = value[i]
-            self[key] = np.delete(value, i)
+        for label, column in self.items():
+            popped[label] = column[i]
+            self[label] = np.delete(column, i, axis=0)
 
         if was_normalized:
             self.normalize()
@@ -259,16 +422,41 @@ class Dataset(Dict):
         return popped
 
     def remove(self, i:Union[int, Vector, List[int], List[Vector]]):
-    
-        if not isinstance(i, int) or not isinstance(i, Vector):
-            i = [i]
-        
-        for j in i:
-            if not isinstance(j, int) or not isinstance(j, Vector):
-                raise TypeError(f"i must be an int, a Vector, a list of int or a list of Vector, not {type(i)}")
+        """Remove a vector from the dataset
 
-            # TODO
-            
+        Args:
+            i (Union[int, Vector, List[int], List[Vector]]): the index or the vector to remove
+
+        Raises:
+            TypeError: if i is not an int, a Vector, a list of int or a list of Vector
+
+        Returns:
+            Dataset: the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.remove(1)
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[9,8,7], "y":4}),
+            ])
+        """
+    
+        # if not isinstance(i, int) or not isinstance(i, Vector):
+        #     i = [i]
+        
+        # for j in i:
+        #     if not isinstance(j, int) or not isinstance(j, Vector):
+        #         raise TypeError(f"i must be an int, a Vector, a list of int or a list of Vector, not {type(i)}")
+        
+        # TODO
+        raise NotImplementedError
+
+        return self      
 
     # Get info about dataset shape --------------------------------------------
 
@@ -278,6 +466,18 @@ class Dataset(Dict):
         
         Returns:
             int: the number of vector in the dataset
+
+        Alias:
+            len
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.lines
+            3
         """
         return list(self.values())[0].shape[0]
     
@@ -289,6 +489,15 @@ class Dataset(Dict):
 
         Alias:
             lines
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> len(dataset)
+            3
         """
         return self.lines
     
@@ -298,24 +507,51 @@ class Dataset(Dict):
         
         Returns:
             int: the number of vector in the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.columns
+            2
         """
         return super().__len__()
 
     @property
     def shape(self):
-        """Get the number of vector in the dataset
+        """Get the shape of the dataset
 
         Returns:
-            int: the number of vector in the dataset
+            tuple[int]: the shape of the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.shape
+            (3, 2)
         """
-        return self.lines * self.columns
+        return self.lines, self.columns
     
     @property
     def size(self):
-        """Get the number of vector in the dataset
-        
+        """Get the size of the dataset
+
         Returns:
-            int: the number of vector in the dataset
+            int: the size of the dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.size
+            6
         """
         return self.lines * self.columns
     
@@ -327,22 +563,55 @@ class Dataset(Dict):
         
         Returns:
             list[str]: the labels
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.labels
+            ["x", "y"]
         """
-        labels = list(self.keys())
-        labels.remove("index")
-        return labels
+        return list(self.keys())
     
     # Get field shapes --------------------------------------------------------
     
     @property
     def shapes(self):
-        """Get the shape of each field"""
-        shapes = []
-        for label, value in self.items():
-            if label == "index":
-                continue
-            shapes.append(value.shape[1:])
-        return shapes
+        """Get the shape of each field
+        
+        Returns:
+            list[tuple[int]]: the shape of each field
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.shapes
+            {'x':(3,), 'y':()}
+        """
+        return self[0].shapes
+
+    @property
+    def sizes(self):
+        """Get the size of each field
+        
+        Returns:
+            list[int]: the size of each field
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.sizes
+            {'x':3, 'y':1}
+        """
+        return self[0].sizes
 
     # Get normalization infos -------------------------------------------------
 
@@ -351,6 +620,18 @@ class Dataset(Dict):
 
         Returns:
             bool: True if the dataset is normalized, False otherwise
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.is_normalized()
+            False
+            >>> dataset.normalize()
+            >>> dataset.is_normalized()
+            True
         """
         return self._normalized
 
@@ -365,6 +646,17 @@ class Dataset(Dict):
 
         Returns:
             float | dict[str, float]: the mean of the specified field | the mean of each field as a dict
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.mean("x")
+            2.6666666666666665
+            >>> dataset.mean()
+            {'x': 2.6666666666666665, 'y': 3.0}
         """
         if field is not None:
             if not isinstance(field, str):
@@ -383,6 +675,17 @@ class Dataset(Dict):
 
         Returns:
             float | dict[str, float]: the standard deviation of the specified field | the standard deviation of each field as a dict
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.std("x")
+            4.189935029992179
+            >>> dataset.std()
+            {'x': 4.189935029992179, 'y': 0.816496580927726}
         """
         if field is not None:
             if not isinstance(field, str):
@@ -401,6 +704,17 @@ class Dataset(Dict):
 
         Returns:
             float | dict[str, float]: the max of the specified field | the max of each field as a dict
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.max("x")
+            9
+            >>> dataset.max()
+            {'x': 9, 'y': 4}
         """
         if field is not None:
             if not isinstance(field, str):
@@ -419,6 +733,17 @@ class Dataset(Dict):
 
         Returns:
             float | dict[str, float]: the min of the specified field | the min of each field as a dict
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.min("x")
+            -3
+            >>> dataset.min()
+            {'x': -3, 'y': 2}
         """
         if field is not None:
             if not isinstance(field, str):
@@ -428,73 +753,126 @@ class Dataset(Dict):
 
     # Dataset normalization ---------------------------------------------------
 
-    def normalize(self):
+    def normalize(self, method:str="zscore"):
         """Normalize the dataset
+
+        Args:
+            method (str): normalization method: "zscore" or "minmax"
 
         Returns:
             Dataset: the normalized dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.normalize()
+            Dataset([
+                Vector({"x":[-0.39777864, -0.15911146,  0.07955573], "y":-1.22474487}),
+                Vector({"x":[-0.87511301, -1.1137802 , -1.35244738], "y":0.}),
+                Vector({"x":[ 1.03422447,  1.27289165,  1.51155884], "y":1.22474487}),
+            ])
+            >>> dataset.normalize("min-max")
+            Dataset([
+                Vector({'x': [0.33333333, 0.41666667, 0.5       ], 'y': 0.}),
+                Vector({'x': [O.16666667, 0.08333333, 0.        ], 'y': 0.5}),
+                Vector({'x': [0.83333333, 0.91666667, 1.        ], 'y': 1.})
+            ])
         """
 
-        if self.is_normalized():
+        res = copy(self)
+
+        res._normalization_method = method
+
+        if res.is_normalized():
             return
         
-        for key, value in self.items():
-            if key == "index":
-                continue
+        for key, value in res.items():
 
-            std = value.std()
-            if std == 0:
-                std = 1
-            self[key] = (value - value.mean()) / value.std()
+            res._means[key] = value.mean()
+            res._stds[key] = value.std()
+            res._maxs[key] = value.max()
+            res._mins[key] = value.min()
 
-            self._means[key] = value.mean()
-            self._stds[key] = value.std()
-            self._maxs[key] = value.max()
-            self._mins[key] = value.min()
+            if method == "zscore":
+                std = value.std()
+                if std == 0:
+                    std = 1
+                res[key] = (value - value.mean()) / value.std()
+            elif method == "minmax":
+                res[key] = (value - value.min()) / (value.max() - value.min())
+            else:
+                raise ValueError(f"Unknown method: {res._normalization_method}. Accepting only 'zscore' and 'minmax'.")
 
-        self._normalized = True
+        res._normalized = True
 
-        return self
+        return res
 
     def denormalize(self, label=None, value=None):
         """Denormalize the dataset, a colummn if the label is specified, or a given value if the label and the value are specified
 
         Raises:
-            ValueError: if the label is "index"
             ValueError: if the label is not specified and the value is specified
             ValueError: if the dataset is not normalized and the value is specified
             TypeError: if the label is not a string or None
         
         Returns:
             Dataset | numpy.ndarray | object: the denormalized dataset | column | value
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.normalize()
+            >>> dataset.denormalize("x")
+            [[1,2,3],[-1,-2,-3],[9,8,7]]
+            >>> dataset.denormalize("x", 0.5)
+            4.761634181662756
+            >>> dataset.denormalize()
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+                Vector({"x":[9,8,7], "y":4}),
+            ])
         """
 
         if label is None and value is not None:
             raise ValueError("Cannot denormalize a value without a label")
         if not self.is_normalized() and value is not None:
             raise ValueError("not normalized dataset cannot be be used to denormalize a value")
-        if label == "index":
-            raise ValueError("Cannot denormalize index field")
-        if not isinstance(label, str):
+        if label is not None and not isinstance(label, str):
             raise TypeError(f"label must be a string, not {type(label)}")
 
         if label is not None:        
             if value is None:
-                value = self[label]
-            return value * self._stds[label] + self._means[label]
+                value = copy(self[label])
+            if self._normalization_method == "zscore":
+                return value * self._stds[label] + self._means[label]
+            elif self._normalization_method == "minmax":
+                return value * (self._maxs[label] - self._mins[label]) + self._mins[label]
+            else:
+                raise ValueError(f"Dataset was normalized with an unknown methode: {self._normalization_method}")
 
         if not self.is_normalized():
-            return
+            return self
         
-        for key, value in self.items():
-            if key == "index":
-                continue
+        res = copy(self)
+        
+        for label, value in res.items():
+            if res._normalization_method == "zscore":
+                res[label] = value * res._stds[label] + res._means[label]
+            elif res._normalization_method == "minmax":
+                res[label] = value * (res._maxs[label] - res._mins[label]) + res._mins[label]
+            else:
+                raise ValueError(f"Dataset was normalized with an unknown methode: {res._normalization_method}.")
 
-            self[key] = value * self._stds[key] + self._means[key]
+        res._normalized = False
 
-        self._normalized = False
-
-        return self
+        return res
     
     # Shuffle -----------------------------------------------------------------
 
@@ -503,6 +881,19 @@ class Dataset(Dict):
         
         Returns:
             Dataset: the shuffled dataset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.shuffle()
+            Dataset([
+                Vector({"x":[9,8,7], "y":4}),
+                Vector({"x":[1,2,3], "y":2}),
+                Vector({"x":[-1,-2,-3], "y":3}),
+            ])
         """
 
         if verbose:
@@ -512,66 +903,17 @@ class Dataset(Dict):
         idx = np.random.permutation(len(self))
 
         # Shuffle the dataset using the randomized indices
-        self = self[idx]
+        shuffled_dataset = self[idx]
 
         if verbose:
             logs.info(f"{self.name} dataset shuffled ✅")
 
-        return self
-    
-    # Get sub sets ------------------------------------------------------------
-
-    def is_splitted(self):
-        return self._splitted
-
-    @property
-    def train(self):
-        """Get the train subset
-
-        Raises:
-            ValueError: if the dataset is not splitted
-        
-        Returns:
-            Dataset: the train subset
-        """
-        if not self.is_splitted():
-            raise ValueError("Dataset is not splitted")
-        return self._train
-    
-    @property
-    def val(self):
-        """Get the val subset
-
-        Raises:
-            ValueError: if the dataset is not splitted
-        
-        Returns:
-            Dataset: the val subset
-        """
-        if not self.is_splitted():
-            raise ValueError("Dataset is not splitted")
-        return self._val
-
-    @property
-    def test(self):
-        """Get the test subset
-
-        Raises:
-            ValueError: if the dataset is not splitted
-        
-        Returns:
-            Dataset: the test subset
-        """
-        if not self.is_splitted():
-            raise ValueError("Dataset is not splitted")
-        return self._test
+        return shuffled_dataset
 
     # Split dataset -----------------------------------------------------------
 
-    def split(self, val:float, test:float):
+    def split(self, val:float, test:float=0.0):
         """Split the dataset into train, val and test subsets.
-
-        In addition of being returned, these subsets are also stored in the dataset as attributes: train, val and test.
         
         Args:
             val (float): fraction of the dataset to use for validation
@@ -585,6 +927,26 @@ class Dataset(Dict):
             Dataset: the train subset
             Dataset: the val subset
             Dataset: the test subset
+
+        Examples:
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> train, val, test = dataset.split(val=1/3, test=1/3)
+            >>> train
+            Dataset([
+                Vector({"x":[9,8,7], "y":4}),
+            ])
+            >>> val
+            Dataset([
+                Vector({"x":[-1,-2,-3], "y":3}),
+            ]) 
+            >>> test
+            Dataset([
+                Vector({"x":[1,2,3], "y":2}),
+            ])
         """
 
         if not isinstance(val, float) or not isinstance(test, float):
@@ -594,29 +956,28 @@ class Dataset(Dict):
             raise ValueError("val + test must be between 0 and 1")
 
         index = np.arange(len(self))
-        mask = np.ones(len(self), dtype=bool)
 
-        test_step = int(len(self) * test)
-        test_mask = mask * ((index % test_step) == 0)
-        test_mask[-1] = 1
+        test_N = int(len(self) * test)
+        test_step = int(len(self) / test_N)
 
-        self._test = self[test_mask]
+        test_mask = (index % test_step) == 0
+
+        test_set = self[test_mask]
+
         rest = self[~test_mask]
 
         index = np.arange(len(rest))
         mask = np.ones(len(rest), dtype=bool)
 
-        val_step = int(len(rest) * val / (1-test))
+        val_N = int(len(rest) * val / (1-test))
+        val_step = int(len(rest) / val_N)
         val_mask = mask * ((index % val_step) == 0)
-        val_mask[-1] = 1
 
-        rest.shuffle()
-        self._val = rest[val_mask]
-        self._train = rest[~val_mask]
+        rest = rest.shuffle()
+        val_set = rest[val_mask]
+        train_set = rest[~val_mask]
 
-        self._splitted = True
-
-        return self._train, self._val, self._test
+        return train_set, val_set, test_set
 
     # Get string representation -----------------------------------------------
 
@@ -625,6 +986,22 @@ class Dataset(Dict):
 
         Returns:
             str: the data summary
+
+        Examples:
+            >>> dataset = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.normalize()
+            >>> dataset.split(val=1/3, test=1/3)
+            >>> print(dataset)
+            MyData dataset, containing 3 vectors.
+            Subsets: Train: 1 vectors, Val: 1 vectors, Test: 1 vectors.
+
+            Fields:
+                - x:   Mean= 2.67e+00   Std= 4.19e+00   Min=-3.00e+00   Max= 9.00e+00   Shape=(3,)
+                - y:   Mean= 3.00e+00   Std= 0.81e+00   Min= 2.00e+00   Max= 4.00e+00   Shape=()
         """
         return self.__repr__()
     
@@ -633,38 +1010,64 @@ class Dataset(Dict):
         
         Returns:
             str: the data summary
+
+        Examples:
+            >>> dataset = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.normalize()
+            >>> dataset.split(val=1/3, test=1/3)
+            >>> print(dataset)
+            MyData dataset, containing 3 vectors.
+            Subsets: Train: 1 vectors, Val: 1 vectors, Test: 1 vectors.
+
+            Fields:
+                - x:   Mean= 2.67e+00   Std= 4.19e+00   Min=-3.00e+00   Max= 9.00e+00   Shape=(3,)
+                - y:   Mean= 3.00e+00   Std= 0.81e+00   Min= 2.00e+00   Max= 4.00e+00   Shape=()
         """
 
         max_label_length = max([len(i) for i in self.labels])
         
         res = f"{self.name} dataset, containing {len(self)} vectors."
-        if not self.is_normalized():
-            res += " (Not processed, no statistics available)"
-
-        if self.is_splitted():
-            res += f"\nSubsets: Train: {len(self.train)} vectors, Val: {len(self.val)} vectors, Test: {len(self.test)} vectors."
         
         res += "\nFields:"
 
         for label in self.labels:
-            if label == "index":
-                continue
             res += f"\n   - {label + ' ' * (max_label_length - len(label))}"
 
-            if self.is_normalized():
-                m = self.mean(label)
-                s = self.std(label)
-                mi = self.min(label)
-                ma = self.max(label)
-            
-                res += f"   Mean: {(' ' if m >= 0 else '')}{m:.2e}"
-                res += f"   Std: {(' ' if s >= 0 else '')}{s:.2e}"
-                res += f"   Min: {(' ' if mi >= 0 else '')}{mi:.2e}"
-                res += f"   Max: {(' ' if ma >= 0 else '')}{ma:.2e}"
-            res += f"   Shape: {self.shapes[self.labels.index(label)]}"
+            m = self[label].mean()
+            s = self[label].std()
+            mi = self[label].min()
+            ma = self[label].max()
+        
+            res += f"   Mean: {(' ' if m >= 0 else '')}{m:.2e}"
+            res += f"   Std: {(' ' if s >= 0 else '')}{s:.2e}"
+            res += f"   Min: {(' ' if mi >= 0 else '')}{mi:.2e}"
+            res += f"   Max: {(' ' if ma >= 0 else '')}{ma:.2e}"
+            res += f"   Shape: {self.shapes[label]}"
 
         return res
     
+    def raw_str(self):
+        """Get a string representation of the dataset fields as a dictionary
+
+        Returns:
+            str: String representation of dataset fields
+
+        Example:
+            >>> dataset = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.raw_str()
+            {'x':[[1,2,3],[-1,-2,-3],[9,8,7]], 'y':[2,3,4]}
+        """       
+
+        return super().__repr__()
+
     # Print few vectors -------------------------------------------------------
 
     def print_few_vectors(self, count=5) -> str:
@@ -675,6 +1078,21 @@ class Dataset(Dict):
 
         Returns:
             str: the resume that is printed
+
+        Examples:
+            >>> dataset = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.print_few_vectors(2)
+            Here is 2 vectors from the MyData dataset:
+            Vector 1
+                - x:   Mean=-2.00e+00   Std= 0.82e+00   Min=-3.00e+00   Max=-1.00e+00   Shape=(3,)
+                - y:   Value= 3.00e+00
+            Vector 2
+                - x:   Mean= 8.00e+00   Std= 0.82e+00   Min= 7.00e+00   Max= 9.00e+00   Shape=(3,)
+                - y:   Value= 4.00e+00
         """
 
         max_label_length = max([len(i) for i in self.labels])
@@ -726,6 +1144,18 @@ class Dataset(Dict):
             
         Returns:
             Dataset: the filtered dataset
+
+        Examples:
+            >>> dataset = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset.filter("x")
+            MyData dataset, containing 3 vectors. (Not processed, no statistics available)
+
+            Fields:
+                - x   Mean=-2.00e+00   Std= 0.82e+00   Min=-3.00e+00   Max= 9.00e+00   Shape=(3,)
         """
 
         if verbose:
@@ -747,11 +1177,6 @@ class Dataset(Dict):
                     del self._min[label]
                     del self._max[label]
 
-        if self.is_splitted():
-            self._train = self._train.filter(labels, verbose=verbose)
-            self._val = self._val.filter(labels, verbose=verbose)
-            self._test = self._test.filter(labels, verbose=verbose)
-
         if verbose:
             logs.info(f"{self.name} dataset filtered ✅\n{self}")
 
@@ -759,6 +1184,118 @@ class Dataset(Dict):
             self.name = f"{self.name} filtered"
 
         return self
+
+    def __eq__(self, other):
+        """Check if two datasets are equal
+
+        Args:
+            other (Dataset): the other dataset
+
+        Returns:
+            bool: True if the datasets are equal, False otherwise
+
+        Examples:
+            >>> dataset1 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset2 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset1 == dataset2
+            True
+        """
+
+        if not isinstance(other, Dataset):
+            return False
+
+        if len(self) != len(other):
+            return False
+
+        for i in range(len(self)):
+            if self[i] != other[i]:
+                return False
+
+        return True
+    
+    def __ne__(self, other):
+        """Check if two datasets are different
+
+        Args:
+            other (Dataset): the other dataset
+
+        Returns:
+            bool: True if the datasets are different, False otherwise
+
+        Examples:
+            >>> dataset1 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset2 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset3 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[-1,-2,-3], "y":3}),
+            ...     Vector({"x":[9,8,7], "y":5}),
+            ... ])
+            >>> dataset1 != dataset2
+            False
+            >>> dataset1 != dataset3
+            True
+        """
+
+        return not self.__eq__(other)
+
+    def approx(self, other, tol=1e-14):
+        """Check if two datasets are approximately equal
+
+        Args:
+            other (Dataset): the other dataset
+            tol (float, optional): the tolerance. Defaults to 1e-14.
+
+        Returns:
+            bool: True if the datasets are approximately equal, False otherwise
+
+        Examples:
+            >>> dataset1 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[9,8,7], "y":4}),
+            ... ])
+            >>> dataset2 = Dataset(name="MyData", vectors=[
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ...     Vector({"x":[9,8,7], "y":5}),
+            ... ])
+            >>> dataset1.approx(dataset2, tol=1e-10))
+            False
+            >>> dataset1.approx(dataset3, tol=10)
+            True
+        """
+
+        if not isinstance(other, Dataset):
+            return False
+
+        if self.lines != other.lines:
+            return False
+        
+        if self.columns != other.columns:
+            return False
+        
+        if self.shapes != other.shapes:
+            return False
+
+        for i in range(len(self)):
+            if not self[i].approx(other[i], tol=tol):
+                return False
+
+        return True
 
     
 """
@@ -774,41 +1311,234 @@ import unittest
 
 class TestDataset(unittest.TestCase):
 
-    def test_dataset(self):
-        v0 = Vector(a=[1,2,3], b=[4,5,6])
-        v1 = Vector(a=[7,8,9], b=[10,11,12])
-        v2 = Vector(a=[-1,-2,-3], b=[-4,-5,-6])
-
-        d = Dataset([v0, v1, v2], "Test")
-
-        assert d.name == "Test", d.name
-
-        assert d[0] == v0, d[0]
-        assert d[1] == v1, d[1]
-        assert d[2] == v2, d[2]
-
-        assert d["a"].tolist() == [[1,2,3], [7,8,9], [-1,-2,-3]], d["a"].tolist()
-        assert d["b"].tolist() == [[4,5,6], [10,11,12], [-4,-5,-6]], d["b"].tolist()
-
-        assert d.labels == ["a", "b"], d.labels
-        assert d.shapes == [(3,), (3,)], d.shapes
+    def get_v0():
+        return Vector(x=[1, -2, 3], y=[[-4, -5, 6],[7, 8, -9]], z=2)
+    
+    def get_v1():
+        return Vector(x=[3, 1, -2], y=[[-4, -5, 3],[6, 2, -1]], z=-3)
+    
+    def get_v2():
+        return Vector(x=[-2, 3, 1], y=[[2, 3, -4],[-5, 1, 6]], z=4)
+    
+    def get_dataset():
+        return Dataset([TestDataset.get_v0(), TestDataset.get_v1(), TestDataset.get_v2()], name="MyData")
         
-        d2 = copy(d)
+    def test_constructor(self):
+        v0 = TestDataset.get_v0()
+        v1 = TestDataset.get_v1()
+        v2 = TestDataset.get_v2()
 
-        d2.normalize()
+        dataset = Dataset([v0, v1, v2])
 
-        assert d2.min("a") == -3, d2.min("a")
-        assert d2.max("a") == 9, d2.max("a")
-        assert d2.mean("a") == 2.6666666666666665, d2.mean("a")
-        assert d2.std("a") == 4.189935029992179, d2.std("a")
-
-        d3 = copy(d2)
-
-        assert d3[0] == v0, d3[0]
-        assert d3[1] == v1, d3[1]
-        assert d3[2] == v2, d3[2]
-
+    def test_name(self):
+        dataset = TestDataset.get_dataset()
         
+        assert dataset.name == "MyData"
+
+        dataset.name = "MyNewData"
+        assert dataset.name == "MyNewData"
+
+    def test_len(self):
+        dataset = Dataset([TestDataset.get_v0(), TestDataset.get_v1(), TestDataset.get_v1()])
+        assert len(dataset) == 3
+
+    def test_getitem(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset[0] == TestDataset.get_v0(), dataset[0]
+        assert dataset[1] == TestDataset.get_v1(), dataset[1]
+        assert dataset[2] == TestDataset.get_v2(), dataset[2]
+
+        assert dataset["x"].tolist() == [[1, -2, 3],[3, 1, -2], [-2, 3, 1]], dataset["x"].tolist()
+        assert dataset["y"].tolist() == [[[-4, -5, 6],[7, 8, -9]], [[-4, -5, 3],[6, 2, -1]], [[2, 3, -4],[-5, 1, 6]]], dataset["y"].tolist()
+        assert dataset["z"].tolist() == [2, -3, 4], dataset["z"].tolist()
+
+        assert dataset[:2] == Dataset([TestDataset.get_v0(), TestDataset.get_v1()]), dataset[:2]
+
+        assert dataset.get(0) == dataset[0]
+        assert dataset.get("x").tolist() == dataset["x"].tolist()
+        assert dataset.get([0,1]) == dataset[:2]
+
+    def test_index(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.index(TestDataset.get_v0()) == [0], dataset.index(TestDataset.get_v0())
+        assert dataset.index(TestDataset.get_v1()) == [1], dataset.index(TestDataset.get_v1())
+        assert dataset.index(TestDataset.get_v2()) == [2], dataset.index(TestDataset.get_v2())
+
+    def test_normalize(self):
+        dataset = TestDataset.get_dataset()
+
+        dataset = dataset.normalize()
+
+        eps = 1e-14
+
+        assert 0-eps < dataset["x"].mean() < 0+eps, dataset["x"].mean()
+        assert 1-eps < dataset["x"].std() < 1+eps, dataset["x"].std()
+        assert 0-eps < dataset["y"].mean() < 0+eps, dataset["y"].mean()
+        assert 1-eps < dataset["y"].std() < 1+eps, dataset["y"].std()
+        assert 0-eps < dataset["z"].mean() < 0+eps, dataset["z"].mean()
+        assert 1-eps < dataset["z"].std() < 1+eps, dataset["z"].std()
+
+        dataset = TestDataset.get_dataset()
+
+        dataset = dataset.normalize("minmax")
+
+        assert dataset["x"].min() == 0, dataset["x"].min()
+        assert dataset["x"].max() == 1, dataset["x"].max()
+        assert dataset["y"].min() == 0, dataset["y"].min()
+        assert dataset["y"].max() == 1, dataset["y"].max()
+        assert dataset["z"].min() == 0, dataset["z"].min()
+        assert dataset["z"].max() == 1, dataset["z"].max()
+
+    def test_denormalize(self):
+        dataset = TestDataset.get_dataset()
+        dataset2 = TestDataset.get_dataset()
+
+        dataset = dataset.normalize()
+        dataset = dataset.denormalize()
+
+        assert dataset.approx(dataset2), f"1) {dataset}\n\n2) {dataset2}"
+
+        dataset = TestDataset.get_dataset()
+        dataset = dataset.normalize("minmax")
+        dataset = dataset.denormalize()
+
+        assert dataset.approx(dataset2), f"1) {dataset}\n\n2) {dataset2}"
+
+    def test_append(self):
+        dataset = Dataset([TestDataset.get_v0(), TestDataset.get_v1()])
+        assert len(dataset) == 2, len(dataset)
+        dataset.append(TestDataset.get_v2())
+        assert len(dataset) == 3, len(dataset)
+        assert dataset[2] == TestDataset.get_v2(), dataset[2]
+
+    def test_pop(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.pop(0) == TestDataset.get_v0()
+        assert len(dataset) == 2, len(dataset)
+        assert dataset.pop(1) == TestDataset.get_v2()
+        assert len(dataset) == 1, len(dataset)
+        assert dataset.pop(0) == TestDataset.get_v1()
+        assert len(dataset) == 0, len(dataset)
+
+    # def test_remove(self):
+
+    #     return
+
+    #     dataset = TestDataset.get_dataset()
+
+    #     dataset.remove(TestDataset.get_v0())
+    #     assert len(dataset) == 2
+    #     dataset.remove(TestDataset.get_v2())
+    #     assert len(dataset) == 1
+    #     dataset.remove(TestDataset.get_v1())
+    #     assert len(dataset) == 0
+        
+    #     dataset = TestDataset.get_dataset()
+
+    #     dataset.remove(0)
+    #     assert len(dataset) == 2
+    #     dataset.remove(1)
+    #     assert len(dataset) == 1
+    #     dataset.remove(0)
+    #     assert len(dataset) == 0
+
+    #     dataset = TestDataset.get_dataset()
+
+    #     dataset.remove([0,2])
+    #     assert len(dataset) == 1
+
+    #     dataset = TestDataset.get_dataset()
+
+    #     dataset.remove([TestDataset.get_v0(), TestDataset.get_v2()])
+    #     assert len(dataset) == 1
+
+    def test_lines(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.lines == 3
+        assert len(dataset) == 3
+
+    def test_columns(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.columns == 3
+
+    def test_shape(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.shape == (3,3)
+        assert dataset.shapes == {"x": (3,), "y": (2,3), "z": ()}
+
+    def test_size(self):
+        dataset = TestDataset.get_dataset()
+        
+        assert dataset.size == 9, dataset.size
+        assert dataset.sizes == {"x": 3, "y": 6, "z": 1}, dataset.sizes
+
+    def test_labels(self):
+        dataset = TestDataset.get_dataset()
+
+        assert dataset.labels == ["x", "y", "z"]
+
+    def test_shuffle(self):
+        dataset = TestDataset.get_dataset()
+        dataset.append(TestDataset.get_v0()*2)
+        dataset.append(TestDataset.get_v1()*2)
+        dataset.append(TestDataset.get_v2()*2)
+        dataset.append(TestDataset.get_v0()*-1)
+        dataset.append(TestDataset.get_v1()*-1)
+        dataset.append(TestDataset.get_v2()*-1)
+        dataset.append(TestDataset.get_v0()*0)
+
+        copy_dataset = copy(dataset)
+
+        dataset = dataset.shuffle()
+
+        # ⚠️ As shuffle is fully random, it is possible that the shuffle gives the same order as the original dataset and then make a false positive
+
+        assert dataset.index(TestDataset.get_v0()) != []
+        assert dataset.index(TestDataset.get_v1()) != []
+        assert dataset.index(TestDataset.get_v2()) != []
+        assert dataset.index(TestDataset.get_v0()*2) != []
+        assert dataset.index(TestDataset.get_v1()*2) != []
+        assert dataset.index(TestDataset.get_v2()*2) != []
+        assert dataset.index(TestDataset.get_v0()*-1) != []
+        assert dataset.index(TestDataset.get_v1()*-1) != []
+        assert dataset.index(TestDataset.get_v2()*-1) != []
+        assert dataset.index(TestDataset.get_v0()*0) != []
+        assert dataset != copy_dataset, f"\n\nOriginal:\n{copy_dataset.raw_str()}\n\nShuffled: {dataset.raw_str()}"
+        assert np.any(dataset._vectors_uid != copy_dataset._vectors_uid), f"\nOriginal: {copy_dataset._vectors_uid}\nShuffled: {dataset._vectors_uid}"
+        assert np.all(np.sort(dataset._vectors_uid) == np.sort(copy_dataset._vectors_uid)), f"\nOriginal: {np.sort(copy_dataset._vectors_uid)}\nShuffled: {np.sort(dataset._vectors_uid)}"
+
+        assert len(dataset) == 10, len(dataset)
+
+    def test_split(self):
+        dataset = TestDataset.get_dataset()
+
+        dataset.append(TestDataset.get_v0()*2)
+        dataset.append(TestDataset.get_v1()*2)
+        dataset.append(TestDataset.get_v2()*2)
+        dataset.append(TestDataset.get_v0()*-1)
+        dataset.append(TestDataset.get_v1()*-1)
+        dataset.append(TestDataset.get_v2()*-1)
+        dataset.append(TestDataset.get_v0()*0)
+
+        train, val, test = dataset.split(0.3, 0.1)
+
+        assert len(train) == 6, len(train)
+        assert len(val) == 3, len(val)
+        assert len(test) == 1, len(test)
+
+    def test_filter(self):
+        dataset = TestDataset.get_dataset()
+
+        new_dataset = dataset.filter(['x','y'])
+
+        assert len(new_dataset) == 3
+        assert new_dataset.labels == ['x','y']
 
 if __name__ == '__main__':
     unittest.main()
