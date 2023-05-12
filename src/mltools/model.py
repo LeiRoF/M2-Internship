@@ -12,18 +12,129 @@ from .dataset import *
 
 class Model(tf.keras.models.Model):
 
-    def __init__(self, *args, dataset, verbose, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.dataset = dataset.filter(self.input_names + self.output_names)
-        self.dataset.xlabels = self.input_names
-        self.dataset.ylabels = self.output_names
+    
+    #==========================================================================
+    # TRAINING & PREDICTION
+    #==========================================================================
 
-        if verbose:
-            self.print()
-            print(self.dataset)
+    # Train model -------------------------------------------------------------
+
+    def fit(self, train, epochs, batch_size, val=None, verbose=True, plot_loss=False):
+        
+        logs.info("Training model...")
+
+        # Progress bar callback ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        class CustomCallback(tf.keras.callbacks.Callback):
+            def __init__(self):
+                self.bar = progress.Bar(epochs)
+                self.last_update = time()
+                self.loss_value = []
+                self.loss_epoch = []
+                if plot_loss:
+                    plt.ion()
+                    self.fig = plt.figure()
+                    self.ax = self.fig.add_subplot(111)
+                    self.loss_curve, = self.ax.plot(self.loss_value, self.loss_epoch, 'r-')
+
+            def on_epoch_end(self, epoch, logs=None):
+                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.5f} | {sysinfo.get()}")
+                if plot_loss and ((time() - self.last_update) > 1):
+                    self.loss_value.append(logs['loss'])
+                    self.loss_epoch.append(epoch)
+                    self.loss_curve.set_xdata(self.loss_epoch)
+                    self.loss_curve.set_ydata(self.loss_value)
+                    self.fig.canvas.draw()
+                    self.fig.canvas.flush_events()
+
+        # Training ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+        start_time = time()
+
+        train_x = dict(train.filter(self.input_names))
+        train_y = dict(train.filter(self.output_names))
+        val_x = dict(val.filter(self.input_names))
+        val_y = dict(val.filter(self.output_names))
+
+        history = super().fit(train_x, train_y,
+                            epochs=epochs,
+                            batch_size=batch_size, 
+                            validation_data=(val_x, val_y), 
+                            verbose=0,
+                            callbacks=[CustomCallback()],
+                            workers=1,
+                            use_multiprocessing=True
+                        )
+
+        training_time = time() - start_time
+
+        logs.info("Model trained. ✅")
+
+        return history, training_time
+    
+    # Predictions -------------------------------------------------------------
+    
+    def predict(self, test_dataset, *args, display=False, save_as=None, N=1, **kwargs):
+
+        test_x = dict(test_dataset.filter(self.input_names))
+        test_y = dict(test_dataset.filter(self.output_names))
+
+        p = []
+        for _ in range(N):
+            p.append(super().predict(test_x, *args, verbose=0, **kwargs))
+
+        results = {}
+        for label in self.output_names:
+            results[label] = []
+            for e, expectation in enumerate(test_y[label]):
+                results[label].append({"expectation": expectation,"predictions":[]})
+                for prediction in p:
+                    results[label][e]["predictions"].append(prediction[label][e])
+
+        i = 0
+        if display:
+            for output in results.keys():
+                # print(output)
+                for run in results[output]:
+                    # print(run)
+                    expectation = run["expectation"]
+                    print(
+                        f"   Epxpectation {i} : ",
+                        expectation.shape,
+                        f"Mean: {np.mean(expectation):.2e}",
+                        f"Std: {np.std(expectation):.2e}",
+                        f"Min: {np.min(expectation):.2e}",
+                        f"Max: {np.max(expectation):.2e}"
+                    )
+                    i+=1
+
+                    for j, prediction in enumerate(run["predictions"]):
+                        print(
+                            f"      Prediction {j} : ",
+                            prediction.shape,
+                            f"Mean: {np.mean(prediction):.2e}",
+                            f"Std:{np.std(prediction):.2e}",
+                            f"Min:{np.min(prediction):.2e}",
+                            f"Max:{np.max(prediction):.2e}"
+                        )
+
+        # Save predictions
+        if save_as is not None:
+            np.savez_compressed(save_as,
+                predictions=results,
+            )
+
+        return results
+
+    #==========================================================================
+    # MODEL REPRESENTATIONS
+    #==========================================================================
+
+    # Model summary -----------------------------------------------------------
 
     def summary(self):
-        # Store and print model summary
         stringlist = []
         super().summary(print_fn=lambda x: stringlist.append(x))
         short_model_summary = "\n".join(stringlist)
@@ -31,6 +142,8 @@ class Model(tf.keras.models.Model):
 
     def print(self):
         print(self.summary())
+
+    # Plot a model representation ---------------------------------------------
 
     def plot(self, archive_path):
         trainable_count = np.sum([K.count_params(w) for w in self.trainable_weights])
@@ -48,22 +161,24 @@ class Model(tf.keras.models.Model):
             layer_range=None,
             show_layer_activations=True,
         )
+    
+    #==========================================================================
+    # SAVE MODEL & METADATA
+    #==========================================================================
+    
+    # Archive model & metadata ------------------------------------------------
 
-    def save(self, archive_path, history=None, **kwargs):
-        try:
-            super().save(os.path.join(archive_path,"model.h5"))
-        except OSError as e:
-            logs.warn(f"Could not save model due to the following OSError:{e}")
+    def save(self, archive_path, history=None, **metadata):
+
+        super().save(os.path.join(archive_path,"model.h5"))
+
         self.plot(archive_path)
 
         summary = self.summary().split("\n")
 
-        dic = dict(summary=summary, **kwargs)
-
-        json.dump(dic, open(f'{archive_path}/details.json', 'w'), indent=4)
+        # History treatment ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if history is not None:
-
             if len(self.output_names) == 1:
                 output_name = self.output_names[0]
                 keys = list(history.history.keys())
@@ -75,8 +190,6 @@ class Model(tf.keras.models.Model):
                             new_key = output_name + "_" + key
                         history.history[new_key] = history.history[key]
                         del history.history[key]
-
-            np.savez_compressed(f'{archive_path}/history.npz', **history.history)
             
             N = len(history.history)
             N1 = int(np.sqrt(N))
@@ -112,12 +225,22 @@ class Model(tf.keras.models.Model):
 
             fig.savefig(f"{archive_path}/history.png")
 
+        # Save metadata ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        np.savez_compressed(f"{archive_path}/metadata.npz", history=history.history, summary=summary, **metadata)
+
+    # Save reference ----------------------------------------------------------
+
     def save_reference(self, reference_path, archive_path):
+
+        # Create reference folder ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if not os.path.isdir(os.path.join(reference_path, "output")):
             os.makedirs(os.path.join(reference_path, "output"))
         if not os.path.isdir(os.path.join(reference_path, "problem")):
             os.makedirs(os.path.join(reference_path, "problem"))
+
+        # Getting mode id ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         try:
             with open(os.path.join(reference_path, "model_list.yml"), "r") as f:
@@ -132,110 +255,22 @@ class Model(tf.keras.models.Model):
             models = {}
             new_model = "0000"
 
+        # Save model reference ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
         models[str(new_model)] = archive_path
 
+        # Global list
         with open(os.path.join(reference_path, "model_list.yml"), "w") as f:
             yaml.dump(models, f)
 
+        # Output list
         for output in self.output_names:
             with open(os.path.join(reference_path, f"output/{output}.yml"), "a") as f:
                 f.write(f"'{new_model}': {archive_path}\n")
 
+        # Problem list
         problem = ",".join(self.input_names) + "---" + ",".join(self.output_names)
         with open(os.path.join(reference_path, f"problem/{problem}.yml"), "a") as f:
             f.write(f"'{new_model}': {archive_path}\n")
 
         return new_model
-
-    def fit(self, epochs, batch_size, verbose=True, plot_loss=False):
-        
-        logs.info("Training model...")
-
-        class CustomCallback(tf.keras.callbacks.Callback):
-            def __init__(self):
-                self.bar = progress.Bar(epochs)
-                self.last_update = time()
-                self.loss_value = []
-                self.loss_epoch = []
-                if plot_loss:
-                    plt.ion()
-                    self.fig = plt.figure()
-                    self.ax = self.fig.add_subplot(111)
-                    self.loss_curve, = self.ax.plot(self.loss_value, self.loss_epoch, 'r-')
-
-            def on_epoch_end(self, epoch, logs=None):
-                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.5f} | {sysinfo.get()}")
-                if plot_loss and ((time() - self.last_update) > 1):
-                    self.loss_value.append(logs['loss'])
-                    self.loss_epoch.append(epoch)
-                    self.loss_curve.set_xdata(self.loss_epoch)
-                    self.loss_curve.set_ydata(self.loss_value)
-                    self.fig.canvas.draw()
-                    self.fig.canvas.flush_events()
-    
-        start_time = time()
-
-        history = super().fit(self.dataset.train.x.data, self.dataset.train.y.data,
-                            epochs=epochs,
-                            batch_size=batch_size, 
-                            validation_data=(self.dataset.val.x.data, self.dataset.val.y.data), 
-                            verbose=0,
-                            callbacks=[CustomCallback()],
-                            workers=1,
-                            use_multiprocessing=True
-                        )
-
-        training_time = time() - start_time
-
-        scores = self.evaluate(self.dataset.test.x.data, self.dataset.test.y.data, verbose=0)
-
-        logs.info("Model trained. ✅")
-
-        return history, training_time, scores
-    
-    def predict(self, *args, display=False, save_as=None, N=1, **kwargs):
-
-        p = []
-        for _ in range(N):
-            p.append(super().predict(self.dataset.test.x.data, *args, verbose=0, **kwargs))
-
-        results = {}
-        for label in self.dataset.y.labels:
-            results[label] = []
-            for e, expectation in enumerate(self.dataset.test.y.data[label]):
-                results[label].append({"expectation": expectation,"predictions":[]})
-                for prediction in p:
-                    results[label][e]["predictions"].append(prediction[label][e])
-
-        i = 0
-        if display:
-            for output in results.keys():
-                for run in results[output]:
-                    expectation = run["expectation"]
-                    print(
-                        f"   Epxpectation {i} : ",
-                        expectation.shape,
-                        f"Mean: {np.mean(expectation):.2e}",
-                        f"Std: {np.std(expectation):.2e}",
-                        f"Min: {np.min(expectation):.2e}",
-                        f"Max: {np.max(expectation):.2e}"
-                    )
-                    i+=1
-
-                    for j, prediction in enumerate(run["predictions"]):
-                        print(
-                            f"      Prediction {j} : ",
-                            prediction.shape,
-                            f"Mean: {np.mean(prediction):.2e}",
-                            f"Std:{np.std(prediction):.2e}",
-                            f"Min:{np.min(prediction):.2e}",
-                            f"Max:{np.max(prediction):.2e}"
-                        )
-
-        # Save predictions
-        if save_as is not None:
-            np.savez_compressed(save_as,
-                predictions=results,
-            )
-
-        return results

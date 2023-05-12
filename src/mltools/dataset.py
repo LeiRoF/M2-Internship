@@ -2,8 +2,8 @@ import numpy as np
 from typing import Union, Callable
 import os
 from LRFutils import progress, logs
-import sysinfo
-from vector import Vector
+from . import sysinfo
+from .vector import Vector
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 from multiprocessing import Pool
@@ -246,21 +246,28 @@ class Dataset(Dict):
         if not isinstance(vector, Vector):
             raise TypeError(f"vector must be a Vector, not {type(vector)}")
 
-        if self.labels != vector.labels:
-            raise TypeError(f"vector must have the same keys as the dataset, found vector label: {list(vector.keys())} and dataset labels: {self.labels}")
-        
-        if self.shapes != vector.shapes:
-            raise TypeError(f"vector must have the same shapes as the vectors in the dataset, found vector shapes: {list(vector.shapes)} and dataset shapes: {self.shapes}")
+        if self.is_empty():
 
-        was_normalized = self.is_normalized()
-        self.denormalize()
+            for label, element in vector.items():
+                self[label] = np.array([element])
+            self._vectors_uid = np.array([vector.uid])
 
-        for label, element in vector.items():
-            self[label] = np.append(self[label], [element], axis=0)
-        self._vectors_uid = np.append(self._vectors_uid, [vector.uid], axis=0)
+        else:
+            if self.labels != vector.labels:
+                raise TypeError(f"vector must have the same keys as the dataset, found vector label: {list(vector.keys())} and dataset labels: {self.labels}")
+            
+            if self.shapes != vector.shapes:
+                raise TypeError(f"vector must have the same shapes as the vectors in the dataset, found vector shapes: {list(vector.shapes)} and dataset shapes: {self.shapes}")
 
-        if was_normalized:
-            self.normalize()
+            was_normalized = self.is_normalized()
+            self.denormalize()
+
+            for label, element in vector.items():
+                self[label] = np.append(self[label], [element], axis=0)
+            self._vectors_uid = np.append(self._vectors_uid, [vector.uid], axis=0)
+
+            if was_normalized:
+                self.normalize()
 
         return self
 
@@ -460,6 +467,31 @@ class Dataset(Dict):
 
     # Get info about dataset shape --------------------------------------------
 
+    def is_empty(self):
+        """Check if the dataset is empty
+
+        Returns:
+            bool: True if the dataset is empty, False otherwise
+
+        Examples:
+            >>> dataset = Dataset()
+            >>> dataset.is_empty()
+            True
+            >>> dataset = Dataset([
+            ...     Vector({"x":[1,2,3], "y":2}),
+            ... ])
+            >>> dataset.is_empty()
+            False
+        """
+
+        if len(self.keys()) == 0:
+            return True
+        
+        if len(self[0]) == 0:
+            return True
+        
+        return False
+
     @property
     def lines(self):
         """Get the number of vector in the dataset
@@ -479,6 +511,8 @@ class Dataset(Dict):
             >>> dataset.lines
             3
         """
+        if self.is_empty():
+            return 0
         return list(self.values())[0].shape[0]
     
     def __len__(self):
@@ -593,6 +627,8 @@ class Dataset(Dict):
             >>> dataset.shapes
             {'x':(3,), 'y':()}
         """
+        if self.is_empty():
+            return {}
         return self[0].shapes
 
     @property
@@ -800,9 +836,12 @@ class Dataset(Dict):
                 std = value.std()
                 if std == 0:
                     std = 1
-                res[key] = (value - value.mean()) / value.std()
+                res[key] = (value - value.mean()) / std
             elif method == "minmax":
-                res[key] = (value - value.min()) / (value.max() - value.min())
+                delta = value.max() - value.min()
+                if delta == 0:
+                    delta = 1
+                res[key] = (value - value.min()) / delta
             else:
                 raise ValueError(f"Unknown method: {res._normalization_method}. Accepting only 'zscore' and 'minmax'.")
 
@@ -1028,6 +1067,9 @@ class Dataset(Dict):
                 - y:   Mean= 3.00e+00   Std= 0.81e+00   Min= 2.00e+00   Max= 4.00e+00   Shape=()
         """
 
+        if self.lines == 0:
+            return f"{self.name} dataset, containing 0 vectors."
+
         max_label_length = max([len(i) for i in self.labels])
         
         res = f"{self.name} dataset, containing {len(self)} vectors."
@@ -1163,27 +1205,29 @@ class Dataset(Dict):
 
         if isinstance(labels, str):
             labels = [labels]
+
+        filtered = copy(self)
         
         for label in self.labels:
             if not isinstance(label, str):
                 raise TypeError("Labels must be strings")
             
             if label not in labels:
-                del self[label]
+                del filtered[label]
 
-                if self.is_normalized():
-                    del self._mean[label]
-                    del self._std[label]
-                    del self._min[label]
-                    del self._max[label]
+                if filtered.is_normalized():
+                    del filtered._means[label]
+                    del filtered._stds[label]
+                    del filtered._mins[label]
+                    del filtered._maxs[label]
 
         if verbose:
-            logs.info(f"{self.name} dataset filtered ✅\n{self}")
+            logs.info(f"{self.name} dataset filtered ✅\n{filtered}")
 
         if not new_name:
-            self.name = f"{self.name} filtered"
+            filtered.name = f"{self.name} filtered"
 
-        return self
+        return filtered
 
     def __eq__(self, other):
         """Check if two datasets are equal

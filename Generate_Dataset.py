@@ -34,7 +34,7 @@ N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 n_List = np.logspace(3, 6, 10, endpoint=True)
 n_List *= u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
 
-r_List = np.logspace(-2, 1, 10, endpoint=True)
+r_List = np.logspace(-2, 0, 10, endpoint=True)
 r_List *= u.pc # Core radius from 0.02 to 1 parsec
 
 p_List, dp = np.linspace(1.5,  2.5, 10, endpoint=True, retstep=True) # Sharpness of the plummer profile from 1.5 to 2.5
@@ -291,10 +291,10 @@ for i, n_H in enumerate(n_List):
     for j, r in enumerate(r_List): 
         for k, p in enumerate(p_List):
 
-            if i > 0:
-                n_H = n_H - np.random.rand() * (n_List[i-1] - n_List[i])
+            if 0 < i < len(n_List) - 1:
+                n_H = (np.random.rand() * np.abs((n_List[i-1] - n_List[i+1]))) + min(n_List[i-1], n_List[i+1])
             if j > 0:
-                r = r - np.random.rand() * (r_List[j-1] - r_List[j])
+                r = (np.random.rand() * np.abs((r_List[j-1] - r_List[j+1]))) + min(r_List[j-1], r_List[j+1])
             p = p + np.random.rand() * dp
 
             # Updating progress bar

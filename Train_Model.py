@@ -1,13 +1,17 @@
+#==============================================================================
+# IMPORT DEPENDENCIES
+#==============================================================================
+
 print("\nImporting dependencies ---------------------------------------------------------\n")
 
 from contextlib import redirect_stdout
 import io
 from time import time
 
-from . import physical_models
+from src import physical_models
 program_start_time = time()
 import numpy as np
-from LRFutils import logs, archive, color
+from LRFutils import logs, archive, color, progress
 import os
 import yaml
 import json
@@ -26,7 +30,7 @@ import tensorrt
 import tensorflow as tf
 # tf.config.experimental.enable_tensor_float_32_execution(enabled=True)
 tf.random.set_seed(0)
-tf.config.run_functions_eagerly(True)
+# tf.config.run_functions_eagerly(True)
 from keras.layers import Input, Dense, Conv2D, Conv3D, MaxPooling2D, MaxPooling3D, UpSampling2D, UpSampling3D, Reshape, Conv3DTranspose, Flatten, Concatenate, Dropout
 
 print("\nEnd importing dependencies -----------------------------------------------------\n")
@@ -35,37 +39,39 @@ archive_path = archive.new(verbose=True)
 print("")
 
 #==============================================================================
-# CONFIGURATION
-#==============================================================================
-
-val_frac = 0.2
-test_frac  = 0.1
-raw_dataset_path = "data/dataset" # path to the raw dataset
-dataset_archive = "data/dataset.npz" # path to the dataset archive (avoid redoing data processing)
-epochs = 1000
-batch_size=100
-
-#==============================================================================
 # LOAD DATASET
 #==============================================================================
 
-# Load one file (= vector) ----------------------------------------------------
+# Load dataset ----------------------------------------------------------------
 
 cpt = 0
+dataset_path = "data/dataset"
+dataset = mltools.dataset.Dataset()
 
-def load_file(path:str):
-    """
-    Load a dataset vector from a file.
-    Vector is a dictionary of numpy arrays that represent your data.
-    """
-    global cpt
+logs.info("Loading dataset...")
+bar = progress.Bar(max=len(os.listdir(dataset_path)))
+for file in os.listdir(dataset_path):
 
-    if not cpt%10 == 0:
-        return
     cpt += 1
+    if not cpt%10 == 0:
+        continue
 
-    data = np.load(path)
-    vector = mltools.dataset.Vector(
+    bar(cpt, prefix=mltools.sysinfo.get())
+    
+    file_path = os.path.join(dataset_path, file)
+
+    data = np.load(file_path)
+
+    # dust_map = data["dust_cube"][np.argmin(np.abs(data["dust_freq"]-2.9979e8/250.0e-6)),:,:]
+
+    # if not os.path.isdir("test"):
+    #     os.mkdir("test")
+    # plt.figure()
+    # plt.imshow(dust_map)
+    # plt.title(f"nH={data['n_H']}, r={data['r']}, p={data['p']}")
+    # plt.savefig(f"test/{cpt}.png")
+
+    dataset.append(mltools.vector.Vector(
         
         # x
         dust_wavelenght    = np.array([250.,]), # [um]
@@ -90,87 +96,76 @@ def load_file(path:str):
             radius=data["r"],
             slope=data["p"],
         ),
-    )
+    ))
 
-    return vector
+logs.info("Dataset loaded. ✅\n")
 
-# Load dataset ----------------------------------------------------------------
+# Process dataset -------------------------------------------------------------
 
-dataset = mltools.dataset.Dataset(
-    name="Pre stellar cores",
-    loader=load_file,
-    raw_path=raw_dataset_path,
-    archive_path=dataset_archive,
-    val_frac=val_frac,
-    test_frac=test_frac,
-    verbose=True,
-)
+val_frac = 0.2
+test_frac  = 0.1
+dataset = dataset.normalize()
+train_dataset, val_dataset, test_dataset = dataset.split(val_frac, test_frac)
 
 #==============================================================================
 # BUILD MODEL
 #==============================================================================
 
-def get_model(dataset):
+# Design model ----------------------------------------------------------------
 
-    sample = dataset[0]
+# Inputs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Inputs ----------------------------------------------------------------------
+inputs = {
+    "dust_map_at_250um": Input(shape=dataset.shapes["dust_map_at_250um"], name="dust_map_at_250um"),
+}
 
-    inputs = {
-        "dust_map_at_250um": Input(shape=sample.data["dust_map_at_250um"].shape, name="dust_map_at_250um"),
-    }
+# Network ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~	
 
-    # Network ---------------------------------------------------------------------
+x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["dust_map_at_250um"])
+x = MaxPooling2D((2, 2), padding='same')(x)
+x = Flatten()(x)
+x = Dense(128, activation='relu')(x)
+x = Dropout(0.3)(x, training=True)
+# Pmax = Dense(128, activation='relu')(x)
+# Prad = Dense(128, activation='relu')(x)
+# Pslope = Dense(128, activation='relu')(x)
+# Pslopelog = Dense(32, activation='relu')(x)
+P1d = Dense(128, activation='relu')(x)
 
-    x = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs["dust_map_at_250um"])
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Flatten()(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dropout(0.3)(x, training=True)
-    # Pmax = Dense(128, activation='relu')(x)
-    # Prad = Dense(128, activation='relu')(x)
-    # Pslope = Dense(128, activation='relu')(x)
-    # Pslopelog = Dense(32, activation='relu')(x)
-    P1d = Dense(128, activation='relu')(x)
+# Outputs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Outputs ---------------------------------------------------------------------
+outputs = {
+    # "total_mass": Dense(1, activation='sigmoid', name="total_mass")(total_mass),
+    # "max_temperature": Dense(1, activation='relu', name="max_temperature")(x),
+    # "plummer_max": Dense(1, activation='relu', name="plummer_max")(Pmax),
+    # "plummer_radius": Dense(1, activation='relu', name="plummer_radius")(Prad),
+    # "plummer_slope": Dense(1, activation='relu', name="plummer_slope")(Pslope),
+    # "plummer_slope_log": Dense(1, activation='relu', name="plummer_slope_log")(Pslopelog),
+    "plummer_profile_1D": Dense(64, activation='sigmoid', name="plummer_profile_1D")(P1d),
+}
 
-    outputs = {
-        # "total_mass": Dense(1, activation='sigmoid', name="total_mass")(total_mass),
-        # "max_temperature": Dense(1, activation='relu', name="max_temperature")(x),
-        # "plummer_max": Dense(1, activation='relu', name="plummer_max")(Pmax),
-        # "plummer_radius": Dense(1, activation='relu', name="plummer_radius")(Prad),
-        # "plummer_slope": Dense(1, activation='relu', name="plummer_slope")(Pslope),
-        # "plummer_slope_log": Dense(1, activation='relu', name="plummer_slope_log")(Pslopelog),
-        "plummer_profile_1D": Dense(64, activation='sigmoid', name="plummer_profile_1D")(P1d),
-    }
-
-    return mltools.model.Model(inputs, outputs, dataset=dataset, verbose=True)
-
-# Options ---------------------------------------------------------------------
-
-loss="mean_squared_error"
-optimizer='RMSprop'
-metrics=[
-    tf.keras.metrics.MeanAbsoluteError(name="MAE"),
-]
+model = mltools.model.Model(inputs, outputs)
 
 # Compile, show and train -----------------------------------------------------
 
 logs.info("Building model...")
-model = get_model(dataset)
-model.compile(
-    loss=loss,
-    optimizer=optimizer,
-    metrics=metrics
-)
+
+loss="mean_squared_error"
+optimizer='RMSprop'
+metrics=[tf.keras.metrics.MeanAbsoluteError(name="MAE"),]
+
+model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+
 logs.info("Model built. ✅")
 
 #==============================================================================
 # TRAIN MODEL
 #==============================================================================
 
-history, trining_time, scores = model.fit(epochs, batch_size, verbose=True, plot_loss=False)
+epochs = 1000
+batch_size=100
+
+history, trining_time = model.fit(train_dataset, epochs, batch_size, val=val_dataset, verbose=True, plot_loss=False)
 
 #==============================================================================
 # SAVE RESULTS
@@ -197,9 +192,16 @@ model.save(
     optimizer=optimizer,
     metrics=metrics,
     model_id=new_model,
-    dataset=str(model.dataset).split("\n"),
-    scores=scores,
+    dataset=str(dataset.denormalize()),
+    dataset_means=dataset.mean(),
+    dataset_stds=dataset.std(),
+    dataset_mins=dataset.min(),
+    dataset_maxs=dataset.max(),
+    dataset_shapes=dataset.shapes,
+    dataset_size=len(dataset),
 )
+
+np.savez_compressed(f"{archive_path}/predictions.npz", dataset=test_dataset.filter(model.input_names + model.output_names))
 
 # End of program
 spent_time = time() - program_start_time
@@ -211,4 +213,4 @@ logs.info(f"End of program. ✅ Took {int(spent_time//60)} minutes and {spent_ti
 
 print("\n\nPredictions --------------------------------------------------------------------\n\n")
 
-p = model.predict(display=True, N=5, save_as=f"{archive_path}/predictions.npz")
+p = model.predict(test_dataset, display=True, N=100, save_as=f"{archive_path}/predictions.npz")
