@@ -40,7 +40,7 @@ class Model(tf.keras.models.Model):
                     self.loss_curve, = self.ax.plot(self.loss_value, self.loss_epoch, 'r-')
 
             def on_epoch_end(self, epoch, logs=None):
-                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.5f} | {sysinfo.get()}")
+                self.bar(epoch+1, prefix = f"Loss: {logs['loss']:.2e} | {sysinfo.get()}")
                 if plot_loss and ((time() - self.last_update) > 1):
                     self.loss_value.append(logs['loss'])
                     self.loss_epoch.append(epoch)
@@ -123,7 +123,7 @@ class Model(tf.keras.models.Model):
         # Save predictions
         if save_as is not None:
             np.savez_compressed(save_as,
-                predictions=results,
+                inference=results,
             )
 
         return results

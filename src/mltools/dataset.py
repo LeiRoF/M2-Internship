@@ -260,7 +260,8 @@ class Dataset(Dict):
                 raise TypeError(f"vector must have the same shapes as the vectors in the dataset, found vector shapes: {list(vector.shapes)} and dataset shapes: {self.shapes}")
 
             was_normalized = self.is_normalized()
-            self.denormalize()
+            if was_normalized:
+                self.denormalize()
 
             for label, element in vector.items():
                 self[label] = np.append(self[label], [element], axis=0)

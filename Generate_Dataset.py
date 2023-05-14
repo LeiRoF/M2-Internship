@@ -34,16 +34,12 @@ N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 n_List = np.logspace(3, 6, 10, endpoint=True)
 n_List *= u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
 
-r_List = np.logspace(-2, 0, 10, endpoint=True)
+r_List = np.logspace(-2, 1, 10, endpoint=True)
 r_List *= u.pc # Core radius from 0.02 to 1 parsec
 
 p_List, dp = np.linspace(1.5,  2.5, 10, endpoint=True, retstep=True) # Sharpness of the plummer profile from 1.5 to 2.5
 p_list = np.flip(p_List) * u.dimensionless_unscaled
 dp *= u.dimensionless_unscaled
-
-print("n_List =", n_List)
-print("r_List =", r_List)
-print("p_List =", p_List)
 
 debug = False
 
@@ -287,15 +283,34 @@ bar = progress.Bar(len(n_List) * len(r_List) * len(p_List))
 if not os.path.isdir("data/dataset"):
     os.mkdir("data/dataset")
 
-for i, n_H in enumerate(n_List): 
-    for j, r in enumerate(r_List): 
-        for k, p in enumerate(p_List):
+fig = plt.figure(figsize=(15,5))
+ax_nr = fig.add_subplot(131)
+ax_np = fig.add_subplot(132)
+ax_rp = fig.add_subplot(133)
 
-            if 0 < i < len(n_List) - 1:
-                n_H = (np.random.rand() * np.abs((n_List[i-1] - n_List[i+1]))) + min(n_List[i-1], n_List[i+1])
-            if j > 0:
-                r = (np.random.rand() * np.abs((r_List[j-1] - r_List[j+1]))) + min(r_List[j-1], r_List[j+1])
+for i in range(len(n_List)): 
+    for j in range(len(r_List)): 
+        for k,p in enumerate(p_List):
+            
+            if i==0:
+                n_H = (np.random.rand() * np.abs(n_List[i] - n_List[i+1])) + min(n_List[i], n_List[i+1])
+            elif 0 < i < len(n_List) - 1:
+                n_H = (np.random.rand() * np.abs(n_List[i-1] - n_List[i+1])) + min(n_List[i-1], n_List[i+1])
+            elif i == len(n_List) - 1:
+                n_H = (np.random.rand() * np.abs(n_List[i-1] - n_List[i])) + min(n_List[i-1], n_List[i])
+
+            if j==0:
+                r = (np.random.rand() * np.abs(r_List[j] - r_List[j+1])) + min(r_List[j], r_List[j+1])
+            elif 0 < j < len(r_List) - 1:
+                r = (np.random.rand() * np.abs(r_List[j-1] - r_List[j+1])) + min(r_List[j-1], r_List[j+1])
+            elif j == len(r_List) - 1:
+                r = (np.random.rand() * np.abs(r_List[j-1] - r_List[j])) + min(r_List[j-1], r_List[j])
+
             p = p + np.random.rand() * dp
+
+            ax_nr.scatter(n_H, r, color="black", s=0.5)
+            ax_np.scatter(n_H, p, color="black", s=0.5)
+            ax_rp.scatter(r, p, color="black", s=0.5)
 
             # Updating progress bar
             n_simu = i*len(r_List)*len(p_List) + j*len(p_List) + k
@@ -392,6 +407,22 @@ for i, n_H in enumerate(n_List):
     
     if debug:
         break
-            
+
+ax_nr.set_xlabel(r"$n_H$ (H atom . cm$^{-3}$)")
+ax_nr.set_ylabel(r"$r$ (pc)")
+ax_nr.set_xscale('log')
+ax_nr.set_yscale('log')
+
+ax_np.set_xlabel(r"$n_H$ (H atom . cm$^{-3}$)")
+ax_np.set_ylabel(r"$p$")
+ax_np.set_xscale('log')
+
+ax_rp.set_xlabel(r"$r$ (pc)")
+ax_rp.set_ylabel(r"$p$")
+ax_rp.set_xscale('log')
+
+ax_np.set_title("Generation's parameter space")
+fig.savefig("data/dataset_parameter_space.png", dpi=300)
+
 # End progress bar
 bar(len(n_List) * len(r_List) * len(p_List))
