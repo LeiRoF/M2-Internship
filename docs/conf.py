@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.insert(0, os.path.abspath('../'))
 
 # Project information ---------------------------------------------------------
 
@@ -14,6 +16,7 @@ extensions = [
     'sphinx_design',
     'sphinx_togglebutton',
     'sphinx_copybutton',
+    'sphinx.ext.autodoc',    'sphinx.ext.napoleon',    'sphinx.ext.viewcode',    'sphinx.ext.todo'
 ]
 myst_heading_anchors = 6
 templates_path = ['_templates']

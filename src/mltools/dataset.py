@@ -318,48 +318,6 @@ class Dataset(Dict):
         
         return self
     
-
-        """Check if two datasets are equals
-
-        Args:
-            other (Dataset): the dataset to compare
-
-        Raises:
-            TypeError: if other is not a Dataset
-
-        Returns:
-            bool: True if the datasets are equals, False otherwise
-
-        Examples:
-            >>> dataset1 = Dataset([
-            ...     Vector({"x":[1,2,3], "y":2}),
-            ...     Vector({"x":[-1,-2,-3], "y":3}),
-            ...     Vector({"x":[9,8,7], "y":4}),
-            ... ])
-            >>> dataset2 = Dataset([
-            ...     Vector({"x":[1,2,3], "y":2}),
-            ...     Vector({"x":[-1,-2,-3], "y":3}),
-            ...     Vector({"x":[9,8,7], "y":4}),
-            ... ])
-            >>> dataset3 = Dataset([
-            ...     Vector({"x":[1,2,3], "y":2}),
-            ...     Vector({"x":[-1,-2,-3], "y":3}),
-            ... ])
-            >>> dataset1 == dataset2
-            True
-            >>> dataset1 == dataset3
-            False
-        """
-
-        if not isinstance(other, Dataset):
-            raise TypeError(f"other must be a Dataset, not {type(other)}")
-        
-        for i, vector in enumerate(self):
-            if vector != other[i]:
-                return False
-        
-        return True
-    
     # Iteration ---------------------------------------------------------------
 
     def __iter__(self):
