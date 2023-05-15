@@ -34,7 +34,7 @@ N2H_fractional_abundance = 1e-7 # particle / hydrogen atom
 n_List = np.logspace(3, 6, 10, endpoint=True)
 n_List *= u.cm**-3 # Density from 10^3 to 10^6 hydrogen atom per cm^-3
 
-r_List = np.logspace(-2, 1, 10, endpoint=True)
+r_List = np.logspace(-2, 0, 10, endpoint=True)
 r_List *= u.pc # Core radius from 0.02 to 1 parsec
 
 p_List, dp = np.linspace(1.5,  2.5, 10, endpoint=True, retstep=True) # Sharpness of the plummer profile from 1.5 to 2.5
